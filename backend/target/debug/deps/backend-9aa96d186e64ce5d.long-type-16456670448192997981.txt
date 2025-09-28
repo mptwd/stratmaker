@@ -1,0 +1,2 @@
+axum::middleware::FromFn<fn(Extension<Arc<{type error}, {type error}>>, axum::extract::State<Pool<Postgres>>, axum::http::Request<Body>, Next) -> impl Future<Output = Result<Response<Body>, StatusCode>> {auth_middleware}, AppState, Route, _>
+axum::middleware::FromFn<fn(Extension<Arc<{type error}, {type error}>>, axum::extract::State<Pool<Postgres>>, axum::http::Request<Body>, Next) -> impl Future<Output = Result<Response<Body>, StatusCode>> {auth_middleware}, AppState, Route, _>: tower_service::Service<axum::http::Request<Body>>

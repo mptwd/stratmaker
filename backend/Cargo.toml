@@ -1,0 +1,52 @@
+[package]
+name = "backend"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+# --- Web Framework ---
+axum = "0.7"
+
+# --- Async runtime ---
+tokio = { version = "1.40", features = ["full"] }
+
+# --- Database (SQLx with Postgres) ---
+sqlx = { version = "0.7", features = ["runtime-tokio-native-tls", "postgres", "chrono", "json", "uuid"] }
+
+# --- Serialization / Deserialization ---
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# --- Environment variables (.env) ---
+dotenv = "0.15"
+
+# --- Error handling (nice to have) ---
+anyhow = "1.0"
+thiserror = "1.0"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+# --- JWT for authentication ---
+jsonwebtoken = "9"
+
+# --- Hashing library ---
+argon2 = "0.5"
+
+# --- Random library ---
+rand = "0.8"
+
+# --- For cookies ---
+axum-extra = {version = "0.9", features = ["cookie"] }
+cookie = { version = "0.18", features = ["percent-encode"] }
+
+# --- For uuids ---
+uuid = { version = "1.0", features = ["v4", "serde"] }
+
+# --- Redis, used for authentication for now ---
+redis = { version = "0.23", features = ["tokio-comp"] }
+
+# --- For encoding tokens into URL-safe strings ---
+base64 = "0.22"
+
+# --- For time ---
+chrono = { version = "0.4", features = ["serde"] }

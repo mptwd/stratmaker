@@ -14,15 +14,11 @@ services:
       POSTGRES_PASSWORD: "postgres"
     restart: unless-stopped
 
-  test_db:
-    container_name: "stratmakerDB_test"
-    image: postgres:12.4-alpine
-    volumes:
-      - "./database/postgres-test-data:/var/lib/postgresql/data:rw"
+  redis:
+    container_name: "stratmakerRedis"
+    image: redis:7-alpine
     ports:
-      - "5434:5432"
-    environment:
-      POSTGRES_DB: "postgres"
-      POSTGRES_USER: "postgres"
-      POSTGRES_PASSWORD: "postgres"
-    restart: unless-stopped
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - "./database/redis-data:/data"
