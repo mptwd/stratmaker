@@ -5,16 +5,16 @@ use axum::{
     extract::{Request, State},
     response::Json,
 };
-use axum_extra::extract::{cookie::Cookie, CookieJar};
+use axum_extra::extract::{CookieJar, cookie::Cookie};
 use regex::Regex;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
 use crate::{
+    AppState,
     auth::{hash_password, verify_password},
     errors::AppError,
     models::{AuthResponse, LoginRequest, RegisterRequest, UserResponse},
-    AppState,
 };
 
 pub async fn register(
@@ -28,7 +28,9 @@ pub async fn register(
     }
 
     if payload.email.len() > 255 {
-        return Err(AppError::BadRequest("Email cannot be greater than 255 characters".to_string()));
+        return Err(AppError::BadRequest(
+            "Email cannot be greater than 255 characters".to_string(),
+        ));
     }
 
     let re = Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap();
@@ -38,8 +40,6 @@ pub async fn register(
 
     /* ========================== */
 
-
-    
     /* ===> Password validation <=== */
 
     if payload.password.len() < 6 {
@@ -52,7 +52,7 @@ pub async fn register(
     /* ============================= */
 
     // Check if user already exists
-    if let Some(_) = state.db.get_user_by_email(&payload.email).await? {
+    if (state.db.get_user_by_email(&payload.email).await?).is_some() {
         return Err(AppError::UserExists);
     }
 
@@ -117,7 +117,7 @@ pub async fn logout(
 ) -> Result<(CookieJar, Json<Value>), AppError> {
     if let Some(session_cookie) = jar.get("session_id") {
         let session_id = session_cookie.value();
-        
+
         // Delete session from Redis
         state.session_store.delete_session(session_id).await?;
     }

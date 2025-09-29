@@ -1,4 +1,4 @@
-use argon2::{password_hash::SaltString, Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
+use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier, password_hash::SaltString};
 use chrono::{DateTime, Utc};
 use rand::rngs::OsRng;
 use redis::{AsyncCommands, Client};
@@ -24,16 +24,18 @@ pub struct Session {
 impl SessionStore {
     pub async fn new(redis_url: &str) -> Result<Self, AppError> {
         let client = Client::open(redis_url)?;
-        
+
         // Test connection
         let mut conn = client.get_multiplexed_async_connection().await?;
         let _: String = redis::cmd("PING").query_async(&mut conn).await?;
-        
+
         Ok(Self { redis: client })
     }
 
     pub fn from_client(redis_client: Client) -> Self {
-        Self { redis: redis_client }
+        Self {
+            redis: redis_client,
+        }
     }
 
     pub async fn create_session(&self, user_id: Uuid) -> Result<String, AppError> {
@@ -49,7 +51,7 @@ impl SessionStore {
 
         let session_json = serde_json::to_string(&session)?;
         let mut conn = self.redis.get_multiplexed_async_connection().await?;
-        
+
         let _: () = conn.set_ex(&session_id, session_json, SESSION_TTL).await?;
 
         Ok(session_id)
@@ -57,13 +59,13 @@ impl SessionStore {
 
     pub async fn get_session(&self, session_id: &str) -> Result<Option<Session>, AppError> {
         let mut conn = self.redis.get_multiplexed_async_connection().await?;
-        
+
         let session_data: Option<String> = conn.get(session_id).await?;
-        
+
         match session_data {
             Some(data) => {
                 let session: Session = serde_json::from_str(&data)?;
-                
+
                 // Check if session is expired
                 if session.expires_at < Utc::now() {
                     // Clean up expired session
@@ -85,7 +87,9 @@ impl SessionStore {
 
     pub async fn extend_session(&self, session_id: &str) -> Result<(), AppError> {
         let mut conn = self.redis.get_multiplexed_async_connection().await?;
-        let _: () = conn.expire(session_id, SESSION_TTL.try_into().unwrap()).await?;
+        let _: () = conn
+            .expire(session_id, SESSION_TTL.try_into().unwrap())
+            .await?;
         Ok(())
     }
 }
@@ -103,8 +107,7 @@ pub fn hash_password(password: &str) -> Result<String, AppError> {
 }
 
 pub fn verify_password(password: &str, hash: &str) -> Result<bool, AppError> {
-    let parsed_hash = PasswordHash::new(hash)
-        .map_err(|_| AppError::PasswordHash)?;
+    let parsed_hash = PasswordHash::new(hash).map_err(|_| AppError::PasswordHash)?;
 
     let argon2 = Argon2::default();
 

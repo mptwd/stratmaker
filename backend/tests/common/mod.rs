@@ -1,8 +1,8 @@
 use axum::Router;
+use backend::{AppState, auth::SessionStore, db::Database};
 use redis::Client as RedisClient;
 use sqlx::PgPool;
 use uuid::Uuid;
-use backend::{auth::SessionStore, db::Database, AppState};
 
 pub struct TestContext {
     pub app: Router,
@@ -37,7 +37,10 @@ impl TestContext {
             .await
             .expect("Failed to flush Redis");
 
-        let app_state = AppState { db: db.clone(), session_store: session_store.clone() };
+        let app_state = AppState {
+            db: db.clone(),
+            session_store: session_store.clone(),
+        };
         let app = backend::create_app(app_state);
 
         Self {
@@ -57,7 +60,8 @@ impl TestContext {
             .expect("Failed to clean database");
 
         // Clean up Redis
-        let mut conn = self.redis_client
+        let mut conn = self
+            .redis_client
             .get_multiplexed_async_connection()
             .await
             .expect("Failed to get Redis connection");
@@ -149,16 +153,15 @@ pub mod assertions {
             .iter()
             .filter_map(|v| v.to_str().ok())
             .collect();
-        
+
         let cookie_found = cookies
             .iter()
             .any(|cookie| cookie.starts_with(&format!("{}=", cookie_name)));
-        
+
         assert!(
             cookie_found,
             "Expected cookie '{}' to be present. Found cookies: {:?}",
-            cookie_name,
-            cookies
+            cookie_name, cookies
         );
     }
 

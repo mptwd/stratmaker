@@ -1,5 +1,5 @@
-pub mod db;
 pub mod app;
+pub mod db;
 pub mod models;
 //mod routes;
 pub mod handlers;
@@ -9,14 +9,15 @@ pub mod auth;
 pub mod errors;
 
 use axum::{
-    routing::{get, post},
     Router,
+    routing::{get, post},
 };
 
 use crate::handlers::*;
-pub use crate::db::Database;
-pub use crate::auth::SessionStore;
+// Making those public because they are needed for integration testing.
 pub use crate::app::AppState;
+pub use crate::auth::SessionStore;
+pub use crate::db::Database;
 
 pub fn create_app(app_state: AppState) -> Router {
     /*

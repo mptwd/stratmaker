@@ -1,12 +1,12 @@
 mod common;
 
 use axum_test::TestServer;
+use backend::models::{AuthResponse, LoginRequest, RegisterRequest, UserResponse};
 use cookie::Cookie;
 use serde_json::Value;
 use uuid::Uuid;
-use backend::models::{AuthResponse, RegisterRequest, LoginRequest, UserResponse};
 
-use common::{assertions::*, TestContext, TestUser};
+use common::{TestContext, TestUser, assertions::*};
 
 #[tokio::test]
 async fn test_user_registration_success() {
@@ -24,7 +24,7 @@ async fn test_user_registration_success() {
         .await;
 
     assert_success_response(&response);
-    
+
     let json: AuthResponse = response.json();
     assert_eq!(json.user.email, test_user.email);
     assert_eq!(json.message, "User registered successfully");
@@ -33,7 +33,7 @@ async fn test_user_registration_success() {
     // Verify user exists in database
     let db_user = ctx.db.get_user_by_email(&test_user.email).await.unwrap();
     assert!(db_user.is_some());
-    
+
     ctx.cleanup().await;
 }
 
@@ -65,10 +65,10 @@ async fn test_user_registration_duplicate_email() {
         .await;
 
     assert_status_code(&response2, 409);
-    
+
     let json: Value = response2.json();
     assert!(json["error"].as_str().unwrap().contains("already exists"));
-    
+
     ctx.cleanup().await;
 }
 
@@ -88,9 +88,14 @@ async fn test_user_registration_validation() {
         .await;
 
     assert_status_code(&response, 400);
-    
+
     let json: Value = response.json();
-    assert!(json["error"].as_str().unwrap().contains("at least 6 characters"));
+    assert!(
+        json["error"]
+            .as_str()
+            .unwrap()
+            .contains("at least 6 characters")
+    );
 
     // Test empty email
     let response = server
@@ -103,10 +108,15 @@ async fn test_user_registration_validation() {
         .await;
 
     assert_status_code(&response, 400);
-    
+
     let json: Value = response.json();
-    assert!(json["error"].as_str().unwrap().contains("Email is required"));
-    
+    assert!(
+        json["error"]
+            .as_str()
+            .unwrap()
+            .contains("Email is required")
+    );
+
     ctx.cleanup().await;
 }
 
@@ -137,11 +147,11 @@ async fn test_user_login_success() {
 
     assert_success_response(&login_response);
     assert_cookie_present(&login_response, "session_id");
-    
+
     let json: AuthResponse = login_response.json();
     assert_eq!(json.user.email, test_user.email);
     assert_eq!(json.message, "Login successful");
-    
+
     ctx.cleanup().await;
 }
 
@@ -171,10 +181,10 @@ async fn test_user_login_invalid_credentials() {
         .await;
 
     assert_status_code(&login_response, 401);
-    
+
     let json: Value = login_response.json();
     assert_eq!(json["error"].as_str().unwrap(), "Unauthorized");
-    
+
     ctx.cleanup().await;
 }
 
@@ -193,10 +203,10 @@ async fn test_user_login_nonexistent_user() {
         .await;
 
     assert_status_code(&login_response, 401);
-    
+
     let json: Value = login_response.json();
     assert_eq!(json["error"].as_str().unwrap(), "Unauthorized");
-    
+
     ctx.cleanup().await;
 }
 
@@ -233,11 +243,11 @@ async fn test_get_current_user_authenticated() {
         .await;
 
     assert_success_response(&me_response);
-    
+
     let json: UserResponse = me_response.json();
     assert_eq!(json.email, test_user.email);
     assert!(Uuid::parse_str(&json.id.to_string()).is_ok());
-    
+
     ctx.cleanup().await;
 }
 
@@ -250,10 +260,10 @@ async fn test_get_current_user_unauthenticated() {
     let me_response = server.get("/api/me").await;
 
     assert_status_code(&me_response, 401);
-    
+
     let json: Value = me_response.json();
     assert_eq!(json["error"].as_str().unwrap(), "Unauthorized");
-    
+
     ctx.cleanup().await;
 }
 
@@ -290,11 +300,14 @@ async fn test_protected_route_authenticated() {
         .await;
 
     assert_success_response(&protected_response);
-    
+
     let json: Value = protected_response.json();
-    assert_eq!(json["message"].as_str().unwrap(), "This is a protected route");
+    assert_eq!(
+        json["message"].as_str().unwrap(),
+        "This is a protected route"
+    );
     assert!(json["user_id"].as_str().is_some());
-    
+
     ctx.cleanup().await;
 }
 
@@ -307,10 +320,10 @@ async fn test_protected_route_unauthenticated() {
     let protected_response = server.get("/api/protected").await;
 
     assert_status_code(&protected_response, 401);
-    
+
     let json: Value = protected_response.json();
     assert_eq!(json["error"].as_str().unwrap(), "Unauthorized");
-    
+
     ctx.cleanup().await;
 }
 
@@ -347,7 +360,7 @@ async fn test_user_logout() {
         .await;
 
     assert_success_response(&logout_response);
-    
+
     let json: Value = logout_response.json();
     assert_eq!(json["message"].as_str().unwrap(), "Logout successful");
 
@@ -358,7 +371,7 @@ async fn test_user_logout() {
         .await;
 
     assert_status_code(&me_response, 401);
-    
+
     ctx.cleanup().await;
 }
 
@@ -389,7 +402,11 @@ async fn test_session_expiration() {
     let session_cookie = extract_cookie_value(&login_response, "session_id").unwrap();
 
     // Manually expire the session in Redis
-    let mut conn = ctx.redis_client.get_multiplexed_async_connection().await.unwrap();
+    let mut conn = ctx
+        .redis_client
+        .get_multiplexed_async_connection()
+        .await
+        .unwrap();
     let _: () = redis::cmd("EXPIRE")
         .arg(&session_cookie)
         .arg(0)
@@ -407,7 +424,7 @@ async fn test_session_expiration() {
         .await;
 
     assert_status_code(&me_response, 401);
-    
+
     ctx.cleanup().await;
 }
 
@@ -423,10 +440,10 @@ async fn test_invalid_session_id() {
         .await;
 
     assert_status_code(&me_response, 401);
-    
+
     let json: Value = me_response.json();
     assert_eq!(json["error"].as_str().unwrap(), "Unauthorized");
-    
+
     ctx.cleanup().await;
 }
 
@@ -499,7 +516,7 @@ async fn test_concurrent_sessions() {
 
     assert_status_code(&me1_after, 401);
     assert_success_response(&me2_after);
-    
+
     ctx.cleanup().await;
 }
 
@@ -520,22 +537,29 @@ async fn test_password_hashing_security() {
         .await;
 
     // Verify password is hashed in database
-    let db_user = ctx.db.get_user_by_email(&test_user.email).await.unwrap().unwrap();
-    
+    let db_user = ctx
+        .db
+        .get_user_by_email(&test_user.email)
+        .await
+        .unwrap()
+        .unwrap();
+
     // Password should not be stored in plaintext
     assert_ne!(db_user.password_hash, test_user.password);
-    
+
     // Password hash should start with Argon2 identifier
     assert!(db_user.password_hash.starts_with("$argon2"));
-    
+
     // Should be able to verify password
-    let is_valid = backend::auth::verify_password(&test_user.password, &db_user.password_hash).unwrap();
+    let is_valid =
+        backend::auth::verify_password(&test_user.password, &db_user.password_hash).unwrap();
     assert!(is_valid);
-    
+
     // Wrong password should not verify
-    let is_invalid = backend::auth::verify_password("wrongpassword", &db_user.password_hash).unwrap();
+    let is_invalid =
+        backend::auth::verify_password("wrongpassword", &db_user.password_hash).unwrap();
     assert!(!is_invalid);
-    
+
     ctx.cleanup().await;
 }
 
@@ -599,6 +623,6 @@ async fn test_full_authentication_flow() {
         .await;
 
     assert_status_code(&final_me_response, 401);
-    
+
     ctx.cleanup().await;
 }

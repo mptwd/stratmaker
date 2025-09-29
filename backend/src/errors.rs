@@ -1,7 +1,7 @@
 use axum::{
+    Json,
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
 };
 use serde_json::json;
 use sqlx::migrate::MigrateError;
@@ -47,50 +47,57 @@ impl IntoResponse for AppError {
                 tracing::error!("Database error: {:?}", e);
 
                 // Handle unique constraint violations
-                if let Some(db_err) = e.as_database_error() {
-                    if db_err.constraint() == Some("users_email_key") {
+                if let Some(db_err) = e.as_database_error()
+                    && db_err.constraint() == Some("users_email_key") {
                         return (
                             StatusCode::CONFLICT,
                             Json(json!({
                                 "error": "User with this email already exists"
-                            }))
-                        ).into_response();
-                    }
+                            })),
+                        )
+                            .into_response();
                 }
 
-                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string())
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Internal server error".to_string(),
+                )
             }
             AppError::Migrate(ref e) => {
                 tracing::error!("Migrate error: {:?}", e);
-                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string())
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Internal server error".to_string(),
+                )
             }
             AppError::Redis(ref e) => {
                 tracing::error!("Redis error: {:?}", e);
-                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string())
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Internal server error".to_string(),
+                )
             }
             AppError::PasswordHash => {
                 tracing::error!("Password hashing error");
-                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string())
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Internal server error".to_string(),
+                )
             }
             AppError::Json(ref e) => {
                 tracing::error!("JSON error: {:?}", e);
                 (StatusCode::BAD_REQUEST, "Invalid JSON".to_string())
             }
-            AppError::Unauthorized => {
-                (StatusCode::UNAUTHORIZED, "Unauthorized".to_string())
-            }
-            AppError::NotFound => {
-                (StatusCode::NOT_FOUND, "User not found".to_string())
-            }
-            AppError::UserExists => {
-                (StatusCode::CONFLICT, "User already exists".to_string())
-            }
-            AppError::BadRequest(msg) => {
-                (StatusCode::BAD_REQUEST, msg)
-            }
+            AppError::Unauthorized => (StatusCode::UNAUTHORIZED, "Unauthorized".to_string()),
+            AppError::NotFound => (StatusCode::NOT_FOUND, "User not found".to_string()),
+            AppError::UserExists => (StatusCode::CONFLICT, "User already exists".to_string()),
+            AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
             AppError::Internal => {
                 tracing::error!("Internal server error");
-                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string())
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Internal server error".to_string(),
+                )
             }
         };
 

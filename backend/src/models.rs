@@ -5,7 +5,6 @@ use uuid::Uuid;
 //pub mod models_db;
 //pub mod models_api;
 
-
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct User {
     pub id: Uuid,

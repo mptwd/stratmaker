@@ -6,9 +6,7 @@ use axum::{
 
 use axum_extra::extract::CookieJar;
 
-use crate::{errors::AppError, AppState};
-
-
+use crate::{AppState, errors::AppError};
 
 pub async fn auth_middleware(
     State(state): State<AppState>, // optional if you want DB access
@@ -16,7 +14,6 @@ pub async fn auth_middleware(
     mut req: Request,
     next: Next,
 ) -> Result<Response, AppError> {
-
     if let Some(session_cookie) = jar.get("session_id") {
         let session_id = session_cookie.value();
 
@@ -36,5 +33,4 @@ pub async fn auth_middleware(
     // But is that correct ? Should we not stop that ?
     //Ok(next.run(req).await)
     Err(AppError::Unauthorized)
-
 }

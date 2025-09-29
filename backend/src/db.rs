@@ -25,10 +25,14 @@ impl Database {
         Ok(())
     }
 
-
-    pub async fn create_user(&self, username: &str, email: &str, password_hash: &str) -> Result<User, AppError> {
+    pub async fn create_user(
+        &self,
+        username: &str,
+        email: &str,
+        password_hash: &str,
+    ) -> Result<User, AppError> {
         let now = Utc::now();
-        
+
         let user = sqlx::query_as::<_, User>(
             r#"
             INSERT INTO users (username, email, password_hash, created_at, updated_at)
@@ -65,7 +69,11 @@ impl Database {
         Ok(user)
     }
 
-    pub async fn update_user_password(&self, user_id: Uuid, password_hash: &str) -> Result<(), AppError> {
+    pub async fn update_user_password(
+        &self,
+        user_id: Uuid,
+        password_hash: &str,
+    ) -> Result<(), AppError> {
         sqlx::query("UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2")
             .bind(password_hash)
             .bind(user_id)

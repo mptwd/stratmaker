@@ -1,7 +1,7 @@
 use tokio::net::TcpListener;
 
-use backend::SessionStore;
 use backend::Database;
+use backend::SessionStore;
 
 use backend::{AppState, create_app};
 
@@ -17,9 +17,8 @@ async fn main() -> anyhow::Result<()> {
     let db = Database::new(&database_url).await?;
     db.migrate().await?;
 
-
-    let redis_url = std::env::var("REDIS_URL")
-        .unwrap_or_else(|_| "redis://localhost:6379".to_string());
+    let redis_url =
+        std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string());
     let session_store = SessionStore::new(&redis_url).await?;
 
     let app_state = AppState { db, session_store };
@@ -31,4 +30,3 @@ async fn main() -> anyhow::Result<()> {
 
     Ok(())
 }
-
