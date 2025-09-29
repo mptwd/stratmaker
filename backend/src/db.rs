@@ -16,6 +16,10 @@ impl Database {
         Ok(Self { pool })
     }
 
+    pub fn from_pool(pool: PgPool) -> Self {
+        Self { pool }
+    }
+
     pub async fn migrate(&self) -> Result<(), AppError> {
         sqlx::migrate!().run(&self.pool).await?;
         Ok(())

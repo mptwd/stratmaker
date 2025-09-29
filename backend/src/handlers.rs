@@ -6,6 +6,7 @@ use axum::{
     response::Json,
 };
 use axum_extra::extract::{cookie::Cookie, CookieJar};
+use regex::Regex;
 use serde_json::{json, Value};
 use uuid::Uuid;
 
@@ -20,22 +21,35 @@ pub async fn register(
     State(state): State<AppState>,
     Json(payload): Json<RegisterRequest>,
 ) -> Result<Json<AuthResponse>, AppError> {
-    // Basic validation
+    /* ===> Email validation <=== */
+
     if payload.email.is_empty() {
         return Err(AppError::BadRequest("Email is required".to_string()));
     }
+
     if payload.email.len() > 255 {
         return Err(AppError::BadRequest("Email cannot be greater than 255 characters".to_string()));
     }
 
-    // TODO: Check email through regex.
+    let re = Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap();
+    if !re.is_match(&payload.email) {
+        return Err(AppError::BadRequest("Must be a valid email".to_string()));
+    }
+
+    /* ========================== */
+
+
     
+    /* ===> Password validation <=== */
+
     if payload.password.len() < 6 {
         return Err(AppError::BadRequest(
             "Password must be at least 6 characters long".to_string(),
         ));
     }
     // TODO: better password checking.
+
+    /* ============================= */
 
     // Check if user already exists
     if let Some(_) = state.db.get_user_by_email(&payload.email).await? {

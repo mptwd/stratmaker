@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 # --- Web Framework ---
-axum = "0.7"
+axum = { version = "0.7", features = ["macros"] }
 
 # --- Async runtime ---
 tokio = { version = "1.40", features = ["full"] }
@@ -37,16 +37,25 @@ rand = "0.8"
 
 # --- For cookies ---
 axum-extra = {version = "0.9", features = ["cookie"] }
-cookie = { version = "0.18", features = ["percent-encode"] }
+cookie = { version = "0.18", features = ["secure", "percent-encode"] }
 
 # --- For uuids ---
 uuid = { version = "1.0", features = ["v4", "serde"] }
 
 # --- Redis, used for authentication for now ---
-redis = { version = "0.23", features = ["tokio-comp"] }
+redis = { version = "0.24", features = ["tokio-comp"] }
 
 # --- For encoding tokens into URL-safe strings ---
 base64 = "0.22"
 
 # --- For time ---
 chrono = { version = "0.4", features = ["serde"] }
+
+# --- For email checking ---
+regex = "1.11"
+
+[dev-dependencies]
+axum-test = "14.0"
+tokio-test = "0.4"
+sqlx = { version = "0.7" }
+tempfile = "3.0"

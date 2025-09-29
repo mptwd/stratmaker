@@ -34,6 +34,7 @@ pub async fn auth_middleware(
 
     // Here, we continue if no session_id cookie was present.
     // But is that correct ? Should we not stop that ?
-    Ok(next.run(req).await)
+    //Ok(next.run(req).await)
+    Err(AppError::Unauthorized)
 
 }

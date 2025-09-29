@@ -4,7 +4,7 @@ use axum::{
     }, Router};
 use sqlx::PgPool;
 
-use crate::{app::health_check, middlewares, AppState};
+use crate::{app::health_check, middlewares, app::AppState};
 use crate::handlers::{
     users::{
         register_user,

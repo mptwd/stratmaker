@@ -1,8 +1,8 @@
-use axum::{
-    response::IntoResponse,
-    http::StatusCode};
+use crate::{auth::SessionStore, db::Database};
 
-pub async fn health_check(
-) -> impl IntoResponse {
-    (StatusCode::OK, "Status is available")
+#[derive(Clone)]
+pub struct AppState {
+    pub db: Database,
+    pub session_store: SessionStore
 }
+

@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::errors::AppError;
 
-const SESSION_TTL: usize = 86400; // 24 hours in seconds
+const SESSION_TTL: u64 = 86400; // 24 hours in seconds
 
 #[derive(Clone)]
 pub struct SessionStore {
@@ -30,6 +30,10 @@ impl SessionStore {
         let _: String = redis::cmd("PING").query_async(&mut conn).await?;
         
         Ok(Self { redis: client })
+    }
+
+    pub fn from_client(redis_client: Client) -> Self {
+        Self { redis: redis_client }
     }
 
     pub async fn create_session(&self, user_id: Uuid) -> Result<String, AppError> {
@@ -81,7 +85,7 @@ impl SessionStore {
 
     pub async fn extend_session(&self, session_id: &str) -> Result<(), AppError> {
         let mut conn = self.redis.get_multiplexed_async_connection().await?;
-        let _: () = conn.expire(session_id, SESSION_TTL).await?;
+        let _: () = conn.expire(session_id, SESSION_TTL.try_into().unwrap()).await?;
         Ok(())
     }
 }

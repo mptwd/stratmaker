@@ -16,20 +16,20 @@ pub struct User {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct RegisterRequest {
     pub username: String,
     pub email: String,
     pub password: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct LoginRequest {
     pub email: String,
     pub password: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct UserResponse {
     pub id: Uuid,
     // Do we need username here ?
@@ -47,7 +47,7 @@ impl From<User> for UserResponse {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct AuthResponse {
     pub user: UserResponse,
     pub message: String,
