@@ -96,9 +96,9 @@ impl TestUser {
     pub fn new() -> Self {
         let uuid = Uuid::new_v4();
         Self {
-            username: format!("test{}", uuid),
+            username: format!("test"),
             email: format!("test{}@example.com", uuid),
-            password: "testpass123".to_string(),
+            password: "Testpass123-a".to_string(),
         }
     }
 }

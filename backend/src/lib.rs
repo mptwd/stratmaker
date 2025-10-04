@@ -13,13 +13,16 @@ use axum::{
     routing::{get, post},
 };
 
-use crate::handlers::*;
+use crate::handlers::users::*;
+use crate::handlers::protected_route; // TODO: delete
+
 // Making those public because they are needed for integration testing.
 pub use crate::app::AppState;
 pub use crate::auth::SessionStore;
 pub use crate::db::Database;
 
 pub fn create_app(app_state: AppState) -> Router {
+    // TODO: Check what CORS do
     /*
     // CORS configuration
     let cors = CorsLayer::new()

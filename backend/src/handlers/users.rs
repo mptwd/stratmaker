@@ -1,243 +1,302 @@
-use std::sync::Arc;
-
-use base64::Engine;
-use cookie::{time, Cookie};
-use redis::AsyncCommands;
-use serde_json::json;
 use axum::{
-    extract::{Path, State}, http::StatusCode, response::IntoResponse, Extension, Json
+    extract::{Request, State},
+    response::Json,
 };
-use argon2::{Argon2, PasswordHash, PasswordVerifier};
-use rand::RngCore;
-use serde::Deserialize;
-use sqlx::PgPool;
+use axum_extra::extract::{CookieJar, cookie::Cookie};
+use regex::Regex;
+use serde_json::{Value, json};
+use uuid::Uuid;
 
 use crate::{
-    models::{models_api::User, models_db::UserDB},
-    store::user_store::create_user
+    AppState,
+    auth::{hash_password, verify_password},
+    errors::AppError,
+    models::{
+        AuthResponse,
+        LoginRequest,
+        RegisterRequest,
+        UserResponse,
+        ChangePasswordRequest
+    },
 };
 
+pub async fn register(
+    State(state): State<AppState>,
+    Json(payload): Json<RegisterRequest>,
+) -> Result<Json<AuthResponse>, AppError> {
+    /* ===> Username validation <=== */
 
-impl AppState {
-    pub async fn redis_conn(&self) -> redis::aio::Connection {
-        self.redis.get_async_connection().await.expect("redis conn")
-    }
-}
-
-
-
-/* ======> Register User <====== */
-
-pub async fn register_user(
-    State(pool): State<PgPool>,
-    Json(payload): Json<RegisterUserRequest>,
-) -> impl IntoResponse {
-    if let Err(e) = validate_register_request(&payload) {
-        return (StatusCode::BAD_REQUEST, Json(json!({ "error": e })));
+    if payload.username.is_empty() {
+        return Err(AppError::BadRequest("Username is required".to_string()));
     }
 
-    let password_hash = format!("hash({})", payload.password); // TODO: Actually hash the password
+    if payload.username.len() < 3 {
+        return Err(AppError::BadRequest(
+            "Username cannot be smaller than 3 characters".to_string(),
+        ));
+    }
 
-    let user = UserDB{
-        id: None, // This is clearly not clean code
-        email: payload.email,
-        username: payload.username,
-        password_hash: password_hash,
-    };
+    if payload.username.len() > 25 {
+        return Err(AppError::BadRequest(
+            "Username cannot be greater than 25 characters".to_string(),
+        ));
+    }
 
-    let store_result = create_user(pool, user).await;
 
-    match store_result {
-        Ok(id) => (StatusCode::CREATED, Json(json!({ "id": id }))),
-        Err(e) => {
-            eprintln!("DB error create_user: {:?}", e); // TODO Better logging
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": "internal server error" })))
+    /*
+     * At least 1 letter.
+     * Starts with a letter or a digit.
+     * 3-25 characters.
+     * Only letters, digits, hyphen and underscores are allowed.
+     * Hyphen and underscores have to be followed by a letter or a digit.
+     */
+    let chars: Vec<char> = payload.username.chars().collect();
+
+    // Must start with letter or digit
+    if !chars[0].is_ascii_alphanumeric() {
+        return Err(AppError::BadRequest(
+            "Must be a valid username".to_string(),
+        ));
+    }
+
+    // At least 1 letter
+    if !chars.iter().any(|c| c.is_ascii_alphabetic()) {
+        return Err(AppError::BadRequest(
+            "Must be a valid username".to_string(),
+        ));
+    }
+
+    // Allowed characters only
+    if !chars
+        .iter()
+        .all(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
+    {
+        return Err(AppError::BadRequest(
+            "Must be a valid username".to_string(),
+        ));
+    }
+
+    // Hyphen/underscore must be followed by a letter/digit
+    for w in chars.windows(2) {
+        if (w[0] == '-' || w[0] == '_') && !w[1].is_ascii_alphanumeric() {
+            return Err(AppError::BadRequest(
+                "Must be a valid username".to_string(),
+            ));
         }
     }
-}
 
-#[derive(Deserialize)]
-pub struct RegisterUserRequest {
-    username: String,
-    email: String,
-    password: String,
-}
-
-fn validate_register_request(req: &RegisterUserRequest) -> Result<(), String> {
-    if req.email == "" {
-        return Err("email is required".to_string());
+    if chars.last() == Some(&'-') || chars.last() == Some(&'_') {
+        return Err(AppError::BadRequest(
+            "Must be a valid username".to_string(),
+        ));
     }
 
-    if req.email.len() > 255 {
-        return Err("email cannot be greater than 255 characters".to_string());
+    /* ============================= */
+
+    /* ===> Email validation <=== */
+
+    if payload.email.is_empty() {
+        return Err(AppError::BadRequest("Email is required".to_string()));
     }
 
-    // TODO: regex the email
-    
-    // TODO: check the username (maybe for bad words or something)
-    if req.username == "" {
-        return Err("username is required".to_string());
-    }
-    if req.email.len() > 255 {
-        return Err("username cannot be greater than 255 characters".to_string());
-    }
-    
-    if req.password == "" {
-        return Err("password is required".to_string());
+    if payload.email.len() > 255 {
+        return Err(AppError::BadRequest(
+            "Email cannot be greater than 255 characters".to_string(),
+        ));
     }
 
-    Ok(())
-}
-
-
-/* ============================= */
-
-
-/* ======> LOGIN <====== */
-
-pub async fn login(
-        Extension(state): Extension<Arc<AppState>>,
-        Json(payload): Json<LoginRequest>,
-    ) -> impl IntoResponse {
-    let pool = &state.pg_pool;
-    
-    if let Ok(Some(user)) = check_credentials(pool.clone(), &payload.email, &payload.password).await { // Clone here bothers me
-        // Credentials valid -> create session in Rediedy-tmux
-        let session_id = generate_session_id();
-        let ttl_seconds = 60 * 60 * 24 * 7; // 7 days
-
-        let mut con = state.redis_conn().await;
-        let key = format!("session:{}", session_id);
-        let _: () = con.set_ex(key, user.id, ttl_seconds).await.unwrap();
-
-        // Send session ID as HttpOnly, Secure cookie
-        let cookie = Cookie::build("session_id", session_id)
-            .http_only(true)
-            .secure(true) // requires HTTPS
-            .path("/")
-            .max_age(time::Duration::seconds(ttl_seconds as i64))
-            .finish();
-
-        (
-            StatusCode::OK,
-            [(axum::http::header::SET_COOKIE, cookie.to_string())],
-            Json(json!({
-                "message": format!("Welcom, {}", user.username),
-            })),
-        )
-            .into_response()
-    } else {
-        (
-            StatusCode::UNAUTHORIZED,
-            Json(json!({ "error": "Invalid credentials" }))
-        )
-            .into_response()
+    let re = Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap();
+    if !re.is_match(&payload.email) {
+        return Err(AppError::BadRequest("Must be a valid email".to_string()));
     }
-}
 
-async fn check_credentials(
-    pool: PgPool,
-    email: &str,
-    password: &str,
-) -> Result<Option<User>, sqlx::Error> {
-    let result = sqlx::query!(
-        "SELECT id, email, username, password_hash FROM users WHERE email = $1",
-        email,
-        )
-        .fetch_optional(&pool)
+    /* ========================== */
+
+
+    /* ===> Password validation <=== */
+
+    if payload.password.is_empty() {
+        return Err(AppError::BadRequest("Password is required".to_string()));
+    }
+
+    if payload.password.len() < 12 {
+        return Err(AppError::BadRequest(
+            "Password must be at least 12 characters long".to_string(),
+        ));
+    }
+
+    if payload.password.len() > 128 {
+        return Err(AppError::BadRequest(
+            "Password cannot be longer than 128 characters".to_string(),
+        ));
+    }
+
+    let has_lower   = payload.password.chars().any(|c| c.is_ascii_lowercase());
+    let has_upper   = payload.password.chars().any(|c| c.is_ascii_uppercase());
+    let has_digit   = payload.password.chars().any(|c| c.is_ascii_digit());
+    let has_special = payload.password.chars().any(|c| r"!@#$%^&*()_-+=[]{};:,.<>?/~\|".contains(c));
+
+    let categories = [has_lower, has_upper, has_digit, has_special]
+        .iter()
+        .filter(|&&b| b)
+        .count();
+
+    if categories < 3 {
+        return Err(AppError::BadRequest(
+                "Password must contain at least 3 of these 4 : lowercase, uppercase, digit, special character".to_string()));
+    }
+
+    if payload.password.chars()
+        .collect::<Vec<_>>()
+        .windows(4)
+        .any(|w| w.iter().all(|&c| c == w[0]))
+    {
+        return Err(AppError::BadRequest(
+                "Password cannot contain 4 identical characters in a row".to_string()));
+    }
+
+    if payload.password.trim() != payload.password {
+        return Err(AppError::BadRequest(
+                "Password cannot start or end with whitespace".to_string()));
+    }
+
+    // TODO: blacklist common passwords
+
+    /* ============================= */
+
+
+    // Check if username already taken
+    if (state.db.get_user_by_username(&payload.username).await?).is_some() {
+        return Err(AppError::UsernameTaken);
+    }
+
+    // Check if user already exists
+    if (state.db.get_user_by_email(&payload.email).await?).is_some() {
+        return Err(AppError::UserExists);
+    }
+
+    // Hash password
+    let password_hash = hash_password(&payload.password)?;
+
+    // Create user
+    let user = state
+        .db
+        .create_user(&payload.username, &payload.email, &password_hash)
         .await?;
 
-    let Some(user) = result else {
-        // No such user
-        return Ok(None);
+    let response = AuthResponse {
+        user: user.into(),
+        message: "User registered successfully".to_string(),
     };
 
-    let parsed_hash = PasswordHash::new(&user.password_hash)
-        .map_err(|_| sqlx::Error::RowNotFound)?; // Treat as invalid credentials
-
-    let verified = Argon2::default()
-        .verify_password(password.as_bytes(), &parsed_hash)
-        .is_ok();
-
-    if verified {
-        Ok(Some(User {
-            id: user.id,
-            email: user.email,
-            username: user.username,
-        }))
-    } else {
-        Ok(None)
-    }
+    Ok(Json(response))
 }
 
+pub async fn login(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Json(payload): Json<LoginRequest>,
+) -> Result<(CookieJar, Json<AuthResponse>), AppError> {
+    // Find user by email
+    let user = state
+        .db
+        .get_user_by_email(&payload.email) // is this safe ? should i check if email is good first
+                                           // to avoid sql injections ?
+        .await?
+        .ok_or(AppError::Unauthorized)?;
 
-fn generate_session_id() -> String {
-    let mut bytes = [0u8; 32];
-    rand::rngs::OsRng.fill_bytes(&mut bytes);
-    base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes)
-}
-
-#[derive(Deserialize)]
-pub struct LoginRequest {
-    email: String,
-    password: String,
-}
-
-/* ===================== */
-
-/* ======> LOGOUT <====== */
-
-async fn logout(
-    Extension(state): Extension<Arc<AppState>>,
-    TypedHeader(cookies): TypedHeader<HeaderCookie>,
-) -> impl IntoResponse {
-    if let Some(session_id) = cookies.get("session_id") {
-        let mut con = state.redis_conn().await;
-        let key = format!("session:{}", session_id);
-        let _: () = con.del(key).await.unwrap_or(());
+    // Verify password
+    // is this safe ? should i check if email is good first to avoid sql injections ?
+    if !verify_password(&payload.password, &user.password_hash)? { 
+        return Err(AppError::Unauthorized);
     }
 
-    // Clear cookie
-    let cookie = Cookie::build("session_id", "")
+    // Create session with Redis
+    let session_id = state.session_store.create_session(user.id).await?;
+
+    // Create secure cookie
+    let session_cookie = Cookie::build(("session_id", session_id))
+        .http_only(true)
+        .secure(true) // Use only in HTTPS in production
+        .same_site(cookie::SameSite::Lax) // TODO: What is Lax ?
+        .path("/")
+        .max_age(cookie::time::Duration::days(1));
+
+    let jar = jar.add(session_cookie);
+
+    let response = AuthResponse {
+        user: user.into(),
+        message: "Login successful".to_string(),
+    };
+
+    Ok((jar, Json(response)))
+}
+
+pub async fn logout(
+    State(state): State<AppState>,
+    jar: CookieJar,
+) -> Result<(CookieJar, Json<Value>), AppError> {
+    if let Some(session_cookie) = jar.get("session_id") {
+        let session_id = session_cookie.value();
+
+        // Delete session from Redis
+        state.session_store.delete_session(session_id).await?;
+    }
+
+    // Remove cookie
+    let session_cookie = Cookie::build(("session_id", ""))
         .http_only(true)
         .secure(true)
+        .same_site(cookie::SameSite::Lax)
         .path("/")
-        .max_age(time::Duration::seconds(0))
-        .finish();
+        .max_age(cookie::time::Duration::seconds(0));
 
-    (
-        [(axum::http::header::SET_COOKIE, cookie.to_string())],
-        "Logged out",
-    )
+    let jar = jar.add(session_cookie);
+
+    Ok((jar, Json(json!({ "message": "Logout successful" }))))
 }
 
-/* ====================== */
+pub async fn get_current_user(
+    State(state): State<AppState>,
+    req: Request,
+) -> Result<Json<UserResponse>, AppError> {
+    // Get user_id from request extensions (set by middleware)
+    let user_id = req
+        .extensions()
+        .get::<Uuid>()
+        .ok_or(AppError::Unauthorized)?;
 
+    let user = state
+        .db
+        .get_user_by_id(*user_id)
+        .await?
+        .ok_or(AppError::NotFound)?;
 
-/*
-pub async fn get_user_by_id(
-    Path(id): Path<i64>,
-    State(pool): State<PgPool>,
-) -> impl IntoResponse {
-    let result = sqlx::query!(
-        "SELECT username, email FROM users WHERE id = $1",
-        id,
-    )
-    .fetch_one(&pool)
-    .await;
+    Ok(Json(user.into()))
+}
 
-    match result {
-        Ok(user) => (StatusCode::OK, Json(json!({
-            "username": user.username,
-            "email": user.email,
-        }))),
-        Err(sqlx::Error::RowNotFound) => {
-            (StatusCode::NOT_FOUND, Json(json!({ "error": "user not found" })))
-        }
-        Err(e) => {
-            eprintln!("DB error: {:?}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": "internal server error" })))
-        }
+pub async fn change_password(
+    State(state): State<AppState>,
+    req: Request,
+    Json(payload): Json<ChangePasswordRequest>,
+) -> Result<Json<Value>, AppError> {
+    let user_id = req
+        .extensions()
+        .get::<Uuid>()
+        .ok_or(AppError::Unauthorized)?;
+
+    let user = state
+        .db
+        .get_user_by_id(*user_id)
+        .await?
+        .ok_or(AppError::NotFound)?;
+
+    // To change password, user must be authenticated, and give his old password.
+    if !verify_password(&payload.password, &user.password_hash)? {
+        return Err(AppError::Unauthorized);
     }
+
+    state.db.update_user_password(*user_id, &payload.new_password).await?;
+        
+    Ok(Json(json!({"message": "Password changed"})))
 }
-*/

@@ -33,6 +33,9 @@ pub enum AppError {
     #[error("User already exists")]
     UserExists,
 
+    #[error("Username already taken")]
+    UsernameTaken,
+
     #[error("Invalid input: {0}")]
     BadRequest(String),
 
@@ -91,6 +94,7 @@ impl IntoResponse for AppError {
             AppError::Unauthorized => (StatusCode::UNAUTHORIZED, "Unauthorized".to_string()),
             AppError::NotFound => (StatusCode::NOT_FOUND, "User not found".to_string()),
             AppError::UserExists => (StatusCode::CONFLICT, "User already exists".to_string()),
+            AppError::UsernameTaken => (StatusCode::CONFLICT, "Username already taken".to_string()),
             AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
             AppError::Internal => {
                 tracing::error!("Internal server error");

@@ -2,9 +2,6 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-//pub mod models_db;
-//pub mod models_api;
-
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct User {
     pub id: Uuid,
@@ -29,12 +26,19 @@ pub struct LoginRequest {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct ChangePasswordRequest {
+    pub password: String,
+    pub new_password: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct UserResponse {
     pub id: Uuid,
     // Do we need username here ?
     pub email: String,
     pub created_at: DateTime<Utc>,
 }
+
 
 impl From<User> for UserResponse {
     fn from(user: User) -> Self {

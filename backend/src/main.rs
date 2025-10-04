@@ -13,7 +13,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Database connection.
     let database_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://user:password@localhost/myapp".to_string());
+        .unwrap_or_else(|_| "postgresql://user:password@localhost/backend".to_string());
     let db = Database::new(&database_url).await?;
     db.migrate().await?;
 
