@@ -54,6 +54,9 @@ chrono = { version = "0.4", features = ["serde"] }
 # --- For email checking ---
 regex = "1.11"
 
+# --- Used in extractors ---
+async-trait = "0.1"
+
 [dev-dependencies]
 axum-test = "14.0"
 tokio-test = "0.4"

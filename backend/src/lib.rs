@@ -7,6 +7,8 @@ pub mod middleware;
 //mod store;
 pub mod auth;
 pub mod errors;
+pub mod extractors;
+pub mod validators;
 
 use axum::{
     Router,
@@ -14,6 +16,7 @@ use axum::{
 };
 
 use crate::handlers::users::*;
+use crate::handlers::strategies::*;
 use crate::handlers::protected_route; // TODO: delete
 
 // Making those public because they are needed for integration testing.
@@ -41,7 +44,15 @@ pub fn create_app(app_state: AppState) -> Router {
         //.merge(routes::routes(&app_state))
         .route("/api/logout", post(logout))
         .route("/api/me", get(get_current_user))
-        .route("/api/protected", get(protected_route))
+        .route("/api/protected", get(protected_route)) // TODO: delete this, it was for testing
+        .route("/api/password", post(change_password))
+
+        .route("/api/strategy/create", post(create_strategy))
+        .route("/api/strategy/delete", post(delete_strategy))
+        .route("/api/strategy/modify", post(modify_strategy))
+        .route("/api/strategy", get(get_strategy))
+        .route("/api/strategy/all", get(get_strategies))
+
         .layer(axum::middleware::from_fn_with_state(
             app_state.clone(),
             crate::middleware::auth_middleware,

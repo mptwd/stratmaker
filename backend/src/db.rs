@@ -1,4 +1,5 @@
 mod user_store;
+mod strategy_store;
 
 use sqlx::PgPool;
 

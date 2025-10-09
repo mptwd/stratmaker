@@ -1,23 +1,16 @@
 pub mod users;
-//pub mod strategies;
+pub mod strategies;
 
 use axum::{
-    extract::Request,
     response::Json,
 };
 use serde_json::{Value, json};
-use uuid::Uuid;
 
 use crate::{
-    errors::AppError,
+    errors::AppError, extractors::AuthenticatedUser,
 };
 
-pub async fn protected_route(req: Request) -> Result<Json<Value>, AppError> {
-    let user_id = req
-        .extensions()
-        .get::<Uuid>()
-        .ok_or(AppError::Unauthorized)?;
-
+pub async fn protected_route(AuthenticatedUser(user_id): AuthenticatedUser) -> Result<Json<Value>, AppError> {
     Ok(Json(json!({
         "message": "This is a protected route",
         "user_id": user_id

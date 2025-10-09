@@ -1,6 +1,9 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use sqlx::types::Json;
 use uuid::Uuid;
+
+use crate::validators::StrategyContent;
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct User {
@@ -55,3 +58,33 @@ pub struct AuthResponse {
     pub user: UserResponse,
     pub message: String,
 }
+
+/* Strategy models */
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct Strategy {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub title: String,
+    pub content: Json<StrategyContent>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct StrategyResumed {
+    pub id: Uuid,
+    pub title: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateStrategyRequest {
+    pub title: String,
+    pub content: StrategyContent,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GetStrategyRequest {
+    pub id: Uuid,
+}
+

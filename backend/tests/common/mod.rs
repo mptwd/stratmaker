@@ -1,5 +1,5 @@
 use axum::Router;
-use backend::{AppState, auth::SessionStore, db::Database};
+use backend::{auth::SessionStore, db::Database, validators::StrategyContent, AppState};
 use redis::Client as RedisClient;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -99,6 +99,35 @@ impl TestUser {
             username: format!("test"),
             email: format!("test{}@example.com", uuid),
             password: "Testpass123-a".to_string(),
+        }
+    }
+}
+
+pub struct TestStrategy {
+    pub title: String,
+    pub content: StrategyContent,
+}
+
+impl TestStrategy {
+    pub fn new() -> Self {
+        let uuid = Uuid::new_v4();
+        let json = r#"
+        {
+          "condition": {
+            "op": "lt",
+            "left": "rsi",
+            "right": 30
+          },
+          "then": {
+              "action": "BUY",
+              "weight": 1.0
+          },
+          "else": "HOLD"
+        }"#;
+ 
+        Self {
+            title: format!("test{}", uuid),
+            content: serde_json::from_str(&json).unwrap(),
         }
     }
 }

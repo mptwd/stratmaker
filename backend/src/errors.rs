@@ -27,7 +27,7 @@ pub enum AppError {
     #[error("Authentication failed")]
     Unauthorized,
 
-    #[error("User not found")]
+    #[error("Not found")]
     NotFound,
 
     #[error("User already exists")]
@@ -35,6 +35,9 @@ pub enum AppError {
 
     #[error("Username already taken")]
     UsernameTaken,
+
+    #[error("Strategy already exists")]
+    StratExists,
 
     #[error("Invalid input: {0}")]
     BadRequest(String),
@@ -92,9 +95,10 @@ impl IntoResponse for AppError {
                 (StatusCode::BAD_REQUEST, "Invalid JSON".to_string())
             }
             AppError::Unauthorized => (StatusCode::UNAUTHORIZED, "Unauthorized".to_string()),
-            AppError::NotFound => (StatusCode::NOT_FOUND, "User not found".to_string()),
+            AppError::NotFound => (StatusCode::NOT_FOUND, "Not found".to_string()),
             AppError::UserExists => (StatusCode::CONFLICT, "User already exists".to_string()),
             AppError::UsernameTaken => (StatusCode::CONFLICT, "Username already taken".to_string()),
+            AppError::StratExists => (StatusCode::CONFLICT, "Strategy already exists".to_string()),
             AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
             AppError::Internal => {
                 tracing::error!("Internal server error");
