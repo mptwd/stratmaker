@@ -1,5 +1,6 @@
 pub mod users;
 pub mod strategies;
+pub mod backtests;
 
 use axum::{
     response::Json,

@@ -1,9 +1,12 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::types::Json;
+use sqlx::{
+    types::Json,
+    Type,
+};
 use uuid::Uuid;
 
-use crate::validators::StrategyContent;
+use crate::validators::strategy_validator::StrategyContent;
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct User {
@@ -88,3 +91,35 @@ pub struct GetStrategyRequest {
     pub id: Uuid,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
+#[sqlx(type_name = "backtest_status", rename_all = "lowercase")]
+pub enum BacktestStatus {
+    Pending,
+    Running,
+    Done,
+    Failed,
+    Cancelled,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct Backtest {
+    pub id: Uuid,
+    pub strategy_id: Uuid,
+    pub status: BacktestStatus,
+    pub dataset: String,
+    pub timeframe: String,
+    pub date_start: DateTime<Utc>,
+    pub date_end: DateTime<Utc>,
+    pub created_at: DateTime<Utc>,
+
+//    pub result_summary: Json(ResultSummary), Do i need that here ?
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateBacktestRequest {
+    pub strategy_id: Uuid,
+    pub dataset: String,
+    pub timeframe: String,
+    pub date_start: DateTime<Utc>,
+    pub date_end: DateTime<Utc>,
+}

@@ -1,9 +1,15 @@
+use std::collections::HashSet;
+
 use tokio::net::TcpListener;
 
-use backend::Database;
-use backend::SessionStore;
-
-use backend::{AppState, create_app};
+use backend::{
+    Database,
+    SessionStore,
+    dataset_client::DatasetManagerClient,
+    validators::strategy_validator::StrategyValidator,
+    AppState,
+    create_app,
+};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -21,7 +27,17 @@ async fn main() -> anyhow::Result<()> {
         std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string());
     let session_store = SessionStore::new(&redis_url).await?;
 
-    let app_state = AppState { db, session_store };
+    let dataset_manager = DatasetManagerClient::new("http://localhost:8081");
+
+    let mut valid_indicators = HashSet::new();
+    valid_indicators.insert("sma_10".to_string());
+    valid_indicators.insert("sma_50".to_string());
+    valid_indicators.insert("rsi".to_string());
+    valid_indicators.insert("macd".to_string());
+    valid_indicators.insert("volume".to_string());
+    let strat_validator = StrategyValidator::new(valid_indicators);
+
+    let app_state = AppState { db, session_store, dataset_manager, strat_validator };
     let app = create_app(app_state);
 
     let listener = TcpListener::bind("127.0.0.1:3000").await?;

@@ -7,6 +7,8 @@ use serde_json::json;
 use sqlx::migrate::MigrateError;
 use thiserror::Error;
 
+use crate::validators::strategy_validator::ValidationError;
+
 #[derive(Error, Debug)]
 pub enum AppError {
     #[error("Database error: {0}")]
@@ -27,14 +29,17 @@ pub enum AppError {
     #[error("Authentication failed")]
     Unauthorized,
 
-    #[error("Not found")]
-    NotFound,
+    #[error("User not found")]
+    UserNotFound,
 
     #[error("User already exists")]
     UserExists,
 
     #[error("Username already taken")]
     UsernameTaken,
+
+    #[error("Strategy not found")]
+    StratNotFound,
 
     #[error("Strategy already exists")]
     StratExists,
@@ -44,6 +49,21 @@ pub enum AppError {
 
     #[error("Internal server error")]
     Internal,
+
+    #[error("Dataset not found")]
+    DatasetNotFound,
+
+    #[error("Backtest not found")]
+    BacktestNotFound,
+
+    #[error("Backtest is in process")]
+    BacktestProcessing,
+
+    #[error("Reqwest error: {0}")]
+    Reqwest(#[from] reqwest::Error),
+
+    #[error("Strategy error {0}")]
+    StratError(#[from] ValidationError),
 }
 
 impl IntoResponse for AppError {
@@ -95,9 +115,10 @@ impl IntoResponse for AppError {
                 (StatusCode::BAD_REQUEST, "Invalid JSON".to_string())
             }
             AppError::Unauthorized => (StatusCode::UNAUTHORIZED, "Unauthorized".to_string()),
-            AppError::NotFound => (StatusCode::NOT_FOUND, "Not found".to_string()),
+            AppError::UserNotFound => (StatusCode::NOT_FOUND, "User not found".to_string()),
             AppError::UserExists => (StatusCode::CONFLICT, "User already exists".to_string()),
             AppError::UsernameTaken => (StatusCode::CONFLICT, "Username already taken".to_string()),
+            AppError::StratNotFound => (StatusCode::NOT_FOUND, "Strategy not found".to_string()),
             AppError::StratExists => (StatusCode::CONFLICT, "Strategy already exists".to_string()),
             AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
             AppError::Internal => {
@@ -107,6 +128,18 @@ impl IntoResponse for AppError {
                     "Internal server error".to_string(),
                 )
             }
+            AppError::DatasetNotFound => (StatusCode::NOT_FOUND, "Dataset not found".to_string()),
+            AppError::Reqwest(ref e) => {
+                tracing::error!("Reqwest error: {:?}", e);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Internal server error".to_string(),
+                )
+            }
+            AppError::BacktestNotFound => (StatusCode::NOT_FOUND, "Backtest not found".to_string()),
+            AppError::BacktestProcessing => (StatusCode::PROCESSING, "Backtest is in process".to_string()),
+            AppError::StratError(ref e) => (StatusCode::BAD_REQUEST, format!("Strategy error: {}", e)),
+
         };
 
         let body = Json(json!({

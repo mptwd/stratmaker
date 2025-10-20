@@ -1,5 +1,6 @@
 mod user_store;
 mod strategy_store;
+mod backtest_store;
 
 use sqlx::PgPool;
 

@@ -7,9 +7,16 @@ use axum::{
 use serde_json::{Value, json};
 
 use crate::{
-    errors::AppError, extractors::AuthenticatedUser, models::{
-        CreateStrategyRequest, GetStrategyRequest, Strategy, StrategyResumed
-    }, validators::validate_strategy, AppState
+    AppState,
+    errors::AppError,
+    extractors::AuthenticatedUser,
+    validators::strategy_validator::validate_strategy_title,
+    models::{
+        CreateStrategyRequest,
+        GetStrategyRequest,
+        Strategy,
+        StrategyResumed,
+    },
 };
 
 pub async fn create_strategy(
@@ -22,7 +29,8 @@ pub async fn create_strategy(
         return Err(AppError::StratExists);
     }
 
-    validate_strategy(&payload.content)?;
+    validate_strategy_title(&payload.title)?;
+    state.strat_validator.validate_strategy(&payload.content)?;
 
     let strategy = state.db.create_strategy(user_id, &payload.title, &payload.content).await?;
         
@@ -49,13 +57,10 @@ pub async fn modify_strategy(
     Json(payload): Json<Strategy>,
 ) -> Result<Json<Value>, AppError> {
     // Checking if user has the strategy to modify
-    let strat = state.db.get_strategy_by_id(payload.id, user_id).await?.ok_or(AppError::NotFound)?;
-    // Is this usefull ?
-    if strat.user_id != user_id {
-        return Err(AppError::NotFound);
-    }
+    let strat = state.db.get_strategy_by_id(payload.id, user_id).await?.ok_or(AppError::StratNotFound)?;
 
-    validate_strategy(&payload.content)?;
+    validate_strategy_title(&payload.title)?;
+    state.strat_validator.validate_strategy(&strat.content)?;
 
     let res = state.db.modify_strategy(payload.id, user_id, &payload.title, &payload.content).await?;
 
@@ -70,8 +75,7 @@ pub async fn get_strategy(
     AuthenticatedUser(user_id): AuthenticatedUser,
     Json(payload): Json<GetStrategyRequest>,
 ) -> Result<Json<Strategy>, AppError> {
-    let strat = state.db.get_strategy_by_id(payload.id, user_id).await?.ok_or(AppError::NotFound)?;
-
+    let strat = state.db.get_strategy_by_id(payload.id, user_id).await?.ok_or(AppError::StratNotFound)?;
     Ok(Json(strat))
 }
 

@@ -18,9 +18,9 @@ use crate::{
         ChangePasswordRequest
     },
     validators::{
-        validate_username,
-        validate_email,
-        validate_password,
+        password_validator::validate_password,
+        username_validator::validate_username,
+        email_validator::validate_email,
     },
 };
 
@@ -131,7 +131,7 @@ pub async fn get_current_user(
         .db
         .get_user_by_id(user_id)
         .await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(AppError::UserNotFound)?;
 
     Ok(Json(user.into()))
 }
@@ -145,7 +145,7 @@ pub async fn change_password(
         .db
         .get_user_by_id(user_id)
         .await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(AppError::UserNotFound)?;
 
     // To change password, user must be authenticated, and give his old password.
     if !verify_password(&payload.password, &user.password_hash)? {

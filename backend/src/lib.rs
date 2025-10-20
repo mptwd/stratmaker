@@ -9,13 +9,14 @@ pub mod auth;
 pub mod errors;
 pub mod extractors;
 pub mod validators;
+pub mod dataset_client;
 
 use axum::{
     Router,
     routing::{get, post},
 };
 
-use crate::handlers::users::*;
+use crate::handlers::{backtests::request_backtest, users::*};
 use crate::handlers::strategies::*;
 use crate::handlers::protected_route; // TODO: delete
 
@@ -52,6 +53,10 @@ pub fn create_app(app_state: AppState) -> Router {
         .route("/api/strategy/modify", post(modify_strategy))
         .route("/api/strategy", get(get_strategy))
         .route("/api/strategy/all", get(get_strategies))
+
+        .route("/api/backtest", post(request_backtest))
+        //.route("/api/backtest/:id", get(backtest_status))
+        //.route("/api/backtest/:id/results", get(backtest_results))
 
         .layer(axum::middleware::from_fn_with_state(
             app_state.clone(),

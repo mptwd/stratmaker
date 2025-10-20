@@ -3,7 +3,7 @@ mod common;
 use axum_test::TestServer;
 use backend::{models::{AuthResponse, CreateStrategyRequest, GetStrategyRequest, LoginRequest, RegisterRequest, Strategy, StrategyResumed, UserResponse}, validators::StrategyContent};
 use cookie::Cookie;
-use serde_json::Value;
+use serde_json::{json, Value};
 use uuid::Uuid;
 
 use common::{TestContext, TestUser, assertions::*};
@@ -1210,299 +1210,6 @@ async fn test_get_strategies_success() {
     ctx.cleanup().await;
 }
 
-/*
-#[tokio::test]
-async fn test_create_strategy_failure() {
-    let ctx = TestContext::new().await;
-    let server = TestServer::new(ctx.app.clone()).unwrap();
-    let test_user = TestUser::new();
-
-    let empty_json = "";
-
-    let badly_named_condition_json = r#"
-        {
-          "wrong": {
-            "op": "and",
-            "conditions": [
-              {
-                "op": "c_ab",
-                "series1": "sma_10",
-                "series2": "sma_50"
-              },
-              {
-                "op": "or",
-                "conditions": [
-                  {
-                    "op": "lt",
-                    "left": "rsi",
-                    "right": 30
-                  },
-                  {
-                    "op": "bet",
-                    "value": "macd",
-                    "min": -5,
-                    "max": 5
-                  }
-                ]
-              }
-            ]
-          },
-          "then": {
-            "condition": {
-              "op": "gt",
-              "left": "volume",
-              "right": 1000000
-            },
-            "then": {
-              "action": "BUY",
-              "weight": 1.0
-            },
-            "else": {
-              "action": "BUY",
-              "weight": 0.5
-            }
-          },
-          "else": "HOLD"
-        }
-        "#.to_string();
-
-    let badly_named_operator_json = r#"
-        {
-          "condition": {
-            "op": "bad_operator",
-            "conditions": [
-              {
-                "op": "c_ab",
-                "series1": "sma_10",
-                "series2": "sma_50"
-              },
-              {
-                "op": "or",
-                "conditions": [
-                  {
-                    "op": "lt",
-                    "left": "rsi",
-                    "right": 30
-                  },
-                  {
-                    "op": "bet",
-                    "value": "macd",
-                    "min": -5,
-                    "max": 5
-                  }
-                ]
-              }
-            ]
-          },
-          "then": {
-            "condition": {
-              "op": "gt",
-              "left": "volume",
-              "right": 1000000
-            },
-            "then": {
-              "action": "BUY",
-              "weight": 1.0
-            },
-            "else": {
-              "action": "BUY",
-              "weight": 0.5
-            }
-          },
-          "else": "HOLD"
-        }
-        "#.to_string();
-
-    let badly_named_indicator_json = r#"
-        {
-          "condition": {
-            "op": "and",
-            "conditions": [
-              {
-                "op": "c_ab",
-                "series1": "wrong_indicator",
-                "series2": "sma_50"
-              },
-              {
-                "op": "or",
-                "conditions": [
-                  {
-                    "op": "lt",
-                    "left": "rsi",
-                    "right": 30
-                  },
-                  {
-                    "op": "bet",
-                    "value": "macd",
-                    "min": -5,
-                    "max": 5
-                  }
-                ]
-              }
-            ]
-          },
-          "then": {
-            "condition": {
-              "op": "gt",
-              "left": "volume",
-              "right": 1000000
-            },
-            "then": {
-              "action": "BUY",
-              "weight": 1.0
-            },
-            "else": {
-              "action": "BUY",
-              "weight": 0.5
-            }
-          },
-          "else": "HOLD"
-        }
-        "#.to_string();
-
-    let badly_named_action_json = r#"
-        {
-          "condition": {
-            "op": "and",
-            "conditions": [
-              {
-                "op": "c_ab",
-                "series1": "sma_30",
-                "series2": "sma_50"
-              },
-              {
-                "op": "or",
-                "conditions": [
-                  {
-                    "op": "lt",
-                    "left": "rsi",
-                    "right": 30
-                  },
-                  {
-                    "op": "bet",
-                    "value": "macd",
-                    "min": -5,
-                    "max": 5
-                  }
-                ]
-              }
-            ]
-          },
-          "then": {
-            "condition": {
-              "op": "gt",
-              "left": "volume",
-              "right": 1000000
-            },
-            "then": {
-              "action": "WRONG_ACTION",
-              "weight": 1.0
-            },
-            "else": {
-              "action": "BUY",
-              "weight": 0.5
-            }
-          },
-          "else": "HOLD"
-        }
-        "#.to_string();
-
-    let empty_strat: StrategyContent = serde_json::from_str(&empty_json).unwrap();
-    let badly_named_condition_strat: StrategyContent = serde_json::from_str(&badly_named_condition_json).unwrap();
-    let badly_named_operator_strat: StrategyContent = serde_json::from_str(&badly_named_operator_json).unwrap();
-    let badly_named_indicator_strat: StrategyContent = serde_json::from_str(&badly_named_indicator_json).unwrap();
-    let badly_named_action_strat: StrategyContent = serde_json::from_str(&badly_named_action_json).unwrap();
-
-    // 1. Register
-    let register_response = server
-        .post("/api/register")
-        .json(&RegisterRequest {
-            username: test_user.username.clone(),
-            email: test_user.email.clone(),
-            password: test_user.password.clone(),
-        })
-    .await;
-
-    assert_success_response(&register_response);
-
-    // 2. Login
-    let login_response = server
-        .post("/api/login")
-        .json(&LoginRequest {
-            email: test_user.email.clone(),
-            password: test_user.password.clone(),
-        })
-        .await;
-
-    assert_success_response(&login_response);
-    let session_cookie = extract_cookie_value(&login_response, "session_id").unwrap();
-
-    let empty_strat_response = server
-        .post("/api/strategy/create")
-        .json(&CreateStrategyRequest {
-            title: "myStrat".to_string(),
-            content: empty_strat,
-        })
-        .add_cookie(Cookie::new("session_id", &session_cookie))
-        .await;
-
-    assert_status_code(&empty_strat_response, 401);
-
-    let badly_named_condition_strat_response = server
-        .post("/api/strategy/create")
-        .json(&CreateStrategyRequest {
-            title: "myStrat".to_string(),
-            content: badly_named_condition_strat,
-        })
-        .add_cookie(Cookie::new("session_id", &session_cookie))
-        .await;
-
-    assert_status_code(&badly_named_condition_strat_response, 401);
-
-    let badly_named_operator_strat_response = server
-        .post("/api/strategy/create")
-        .json(&CreateStrategyRequest {
-            title: "myStrat".to_string(),
-            content: badly_named_operator_strat,
-        })
-        .add_cookie(Cookie::new("session_id", &session_cookie))
-        .await;
-
-    assert_status_code(&badly_named_operator_strat_response, 401);
-
-    let badly_named_indicator_strat_response = server
-        .post("/api/strategy/create")
-        .json(&CreateStrategyRequest {
-            title: "myStrat".to_string(),
-            content: badly_named_indicator_strat,
-        })
-        .add_cookie(Cookie::new("session_id", &session_cookie))
-        .await;
-
-    assert_status_code(&badly_named_indicator_strat_response, 401);
-
-    let badly_named_action_strat_response = server
-        .post("/api/strategy/create")
-        .json(&CreateStrategyRequest {
-            title: "myStrat".to_string(),
-            content: badly_named_action_strat,
-        })
-        .add_cookie(Cookie::new("session_id", &session_cookie))
-        .await;
-
-    assert_status_code(&badly_named_action_strat_response, 401);
-
-    let logout_response = server
-        .post("/api/logout")
-        .add_cookie(Cookie::new("session_id", &session_cookie))
-        .await;
-
-    assert_success_response(&logout_response);
-
-    ctx.cleanup().await;
-}
-*/
-
 #[tokio::test]
 async fn test_create_duplicate_title_strategy() {
     let ctx = TestContext::new().await;
@@ -1612,6 +1319,65 @@ async fn test_create_duplicate_title_strategy() {
     assert_success_response(&logout_response);
 
     ctx.cleanup().await;
+}
+
+#[tokio::test]
+async fn test_delete_strategy() {
+    let ctx = TestContext::new().await;
+    let server = TestServer::new(ctx.app.clone()).unwrap();
+    let test_user = TestUser::new();
+    let test_strat = TestStrategy::new();
+
+    // 1. Register
+    let register_response = server
+        .post("/api/register")
+        .json(&RegisterRequest {
+            username: test_user.username.clone(),
+            email: test_user.email.clone(),
+            password: test_user.password.clone(),
+        })
+    .await;
+
+    assert_success_response(&register_response);
+
+    // 2. Login
+    let login_response = server
+        .post("/api/login")
+        .json(&LoginRequest {
+            email: test_user.email.clone(),
+            password: test_user.password.clone(),
+        })
+        .await;
+
+    assert_success_response(&login_response);
+    let session_cookie = extract_cookie_value(&login_response, "session_id").unwrap();
+
+    let create_strat_response = server
+        .post("/api/strategy/create")
+        .json(&CreateStrategyRequest {
+            title: test_strat.title.clone(),
+            content: test_strat.content.clone(),
+        })
+        .add_cookie(Cookie::new("session_id", &session_cookie))
+        .await;
+
+    assert_success_response(&create_strat_response);
+
+    let created_strat: Strategy = create_strat_response.json();
+
+    let delete_strat_response = server
+        .post("/api/strategy/delete")
+        .json(&created_strat.id)
+        .add_cookie(Cookie::new("session_id", &session_cookie))
+        .await;
+
+    assert_success_response(&delete_strat_response);
+
+    let delete_json = create_strat_response.json();
+
+    assert_json_contains_field(delete_json, "num_del");
+    assert_json_field(delete_json, "num_del", "1");
+
 }
 
 

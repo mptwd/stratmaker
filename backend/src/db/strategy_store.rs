@@ -3,7 +3,7 @@ use sqlx::types::Json;
 use uuid::Uuid;
 
 use crate::{
-    errors::AppError, models::{Strategy, StrategyResumed}, validators::StrategyContent, Database
+    errors::AppError, models::{Strategy, StrategyResumed}, validators::strategy_validator::StrategyContent, Database
 };
 
 impl Database {

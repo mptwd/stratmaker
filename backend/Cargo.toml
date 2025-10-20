@@ -11,11 +11,15 @@ axum = { version = "0.7", features = ["macros"] }
 tokio = { version = "1.40", features = ["full"] }
 
 # --- Database (SQLx with Postgres) ---
-sqlx = { version = "0.7", features = ["runtime-tokio-native-tls", "postgres", "chrono", "json", "uuid"] }
+sqlx = { version = "0.7", features = ["runtime-tokio-native-tls", "macros", "postgres", "chrono", "json", "uuid"] }
 
 # --- Serialization / Deserialization ---
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+
+# --- MessagePack ---
+rmp-serde = "1.1"
+rmpv = "1.0"
 
 # --- Environment variables (.env) ---
 dotenv = "0.15"
@@ -57,8 +61,17 @@ regex = "1.11"
 # --- Used in extractors ---
 async-trait = "0.1"
 
+# --- To communicate with other services ---
+reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
+
 [dev-dependencies]
 axum-test = "14.0"
 tokio-test = "0.4"
 sqlx = { version = "0.7" }
 tempfile = "3.0"
+
+[profile.release]
+opt-level = 3
+
+[profile.dev]
+opt-level = 0
