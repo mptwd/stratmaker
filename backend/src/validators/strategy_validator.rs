@@ -14,33 +14,25 @@ pub fn validate_strategy_title(title: &str) -> Result<(), AppError> {
         ));
     }
 
-    let chars: Vec<char> = title.chars().collect(); // TODO: This collect might be bad
+    let chars: Vec<char> = title.chars().collect(); // PERF: This collect might be bad
 
     if !chars
         .iter()
         .all(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_' || *c == ' ')
     {
-        return Err(AppError::BadRequest(
-            "Must be a valid title".to_string(),
-        ));
+        return Err(AppError::BadRequest("Must be a valid title".to_string()));
     }
 
-
     if chars.first() == Some(&'-') || chars.first() == Some(&'_') {
-        return Err(AppError::BadRequest(
-            "Must be a valid title".to_string(),
-        ));
+        return Err(AppError::BadRequest("Must be a valid title".to_string()));
     }
 
     if chars.last() == Some(&'-') || chars.last() == Some(&'_') {
-        return Err(AppError::BadRequest(
-            "Must be a valid title".to_string(),
-        ));
+        return Err(AppError::BadRequest("Must be a valid title".to_string()));
     }
 
     Ok(())
 }
-
 
 #[derive(Error, Debug)]
 pub enum ValidationError {
@@ -111,27 +103,61 @@ pub enum Value {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum Cond {
-    And { conds: Vec<Cond> },
-    Or { conds: Vec<Cond> },
-    Not { cond: Box<Cond> },
+    And {
+        conds: Vec<Cond>,
+    },
+    Or {
+        conds: Vec<Cond>,
+    },
+    Not {
+        cond: Box<Cond>,
+    },
     #[serde(rename = "lt")]
-    LessThan { l: Box<Value>, r: Box<Value> },
+    LessThan {
+        l: Box<Value>,
+        r: Box<Value>,
+    },
     #[serde(rename = "gt")]
-    GreaterThan { l: Box<Value>, r: Box<Value> },
+    GreaterThan {
+        l: Box<Value>,
+        r: Box<Value>,
+    },
     #[serde(rename = "le")]
-    LessThanOrEqual { l: Box<Value>, r: Box<Value> },
+    LessThanOrEqual {
+        l: Box<Value>,
+        r: Box<Value>,
+    },
     #[serde(rename = "ge")]
-    GreaterThanOrEqual { l: Box<Value>, r: Box<Value> },
+    GreaterThanOrEqual {
+        l: Box<Value>,
+        r: Box<Value>,
+    },
     #[serde(rename = "eq")]
-    Equal { l: Box<Value>, r: Box<Value> },
+    Equal {
+        l: Box<Value>,
+        r: Box<Value>,
+    },
     #[serde(rename = "neq")]
-    NotEqual { l: Box<Value>, r: Box<Value> },
+    NotEqual {
+        l: Box<Value>,
+        r: Box<Value>,
+    },
     #[serde(rename = "bet")]
-    Between { val: Box<Value>, min: Box<Value>, max: Box<Value> },
+    Between {
+        val: Box<Value>,
+        min: Box<Value>,
+        max: Box<Value>,
+    },
     #[serde(rename = "xab")]
-    CrossesAbove { l: Box<Value>, r: Box<Value> },
+    CrossesAbove {
+        l: Box<Value>,
+        r: Box<Value>,
+    },
     #[serde(rename = "xbe")]
-    CrossesBelow { l: Box<Value>, r: Box<Value> },
+    CrossesBelow {
+        l: Box<Value>,
+        r: Box<Value>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -183,14 +209,13 @@ impl StrategyValidator {
             | Cond::Equal { l, r }
             | Cond::NotEqual { l, r }
             | Cond::CrossesAbove { l, r }
-            | Cond::CrossesBelow { l, r }
-            => {
+            | Cond::CrossesBelow { l, r } => {
                 Self::collect_indicators_from_value(l, indicators);
                 Self::collect_indicators_from_value(r, indicators);
             }
             Cond::And { conds } | Cond::Or { conds } => {
                 if conds.is_empty() {
-                    return ;
+                    return;
                 }
                 for cond in conds {
                     Self::collect_indicators_from_condition(cond, indicators);
@@ -225,9 +250,8 @@ impl StrategyValidator {
     /// Validate and serialize to MessagePack bytes
     pub fn to_msgpack(&self, strategy: &StrategyContent) -> Result<Vec<u8>, ValidationError> {
         self.validate_strategy(strategy)?;
-        
-        rmp_serde::to_vec(strategy)
-            .map_err(|e| ValidationError::SerializationError(e.to_string()))
+
+        rmp_serde::to_vec(strategy).map_err(|e| ValidationError::SerializationError(e.to_string()))
     }
 
     /// Validate from JSON (for user input/debugging)
@@ -297,14 +321,15 @@ impl StrategyValidator {
             | Cond::Equal { l, r }
             | Cond::NotEqual { l, r }
             | Cond::CrossesAbove { l, r }
-            | Cond::CrossesBelow { l, r }
-            => {
+            | Cond::CrossesBelow { l, r } => {
                 self.validate_value(l)?;
                 self.validate_value(r)?;
             }
             Cond::And { conds } | Cond::Or { conds } => {
                 if conds.is_empty() {
-                    return Err(ValidationError::MissingField("Empty logical operator".to_string()));
+                    return Err(ValidationError::MissingField(
+                        "Empty logical operator".to_string(),
+                    ));
                 }
                 for cond in conds {
                     self.validate_condition(cond)?;
@@ -358,11 +383,14 @@ mod tests {
           ]
         }"#;
 
-        let strat_validator = StrategyValidator::new(vec!["sma_10".to_string(), "sma_50".to_string()]);
+        let mut hash = HashSet::new();
+        hash.insert("sma_10".to_string());
+        hash.insert("sma_50".to_string());
+        let strat_validator = StrategyValidator::new(hash);
 
         let msgpack = strat_validator.json_to_msgpack(json).unwrap();
         let back_to_json = strat_validator.msgpack_to_json(&msgpack).unwrap();
-        
+
         // Verify round-trip works
         let original: serde_json::Value = serde_json::from_str(json).unwrap();
         let converted: serde_json::Value = serde_json::from_str(&back_to_json).unwrap();
@@ -402,15 +430,21 @@ mod tests {
             ]
         }"#;
 
-        let strat_validator = StrategyValidator::new(vec!["rsi".to_string(), "macd".to_string()]);
+        let mut hash = HashSet::new();
+        hash.insert("rsi".to_string());
+        hash.insert("macd".to_string());
+        let strat_validator = StrategyValidator::new(hash);
         let msgpack = strat_validator.json_to_msgpack(json).unwrap();
         let json_size = json.as_bytes().len();
         let msgpack_size = msgpack.len();
-        
+
         println!("JSON size: {} bytes", json_size);
         println!("MessagePack size: {} bytes", msgpack_size);
-        println!("Savings: {:.1}%", (1.0 - msgpack_size as f64 / json_size as f64) * 100.0);
-        
+        println!(
+            "Savings: {:.1}%",
+            (1.0 - msgpack_size as f64 / json_size as f64) * 100.0
+        );
+
         assert!(msgpack_size < json_size);
     }
 
@@ -436,7 +470,9 @@ mod tests {
             ]
         }"#;
 
-        let strat_validator = StrategyValidator::new(vec!["iv_rank".to_string()]);
+        let mut hash = HashSet::new();
+        hash.insert("iv_rank".to_string());
+        let strat_validator = StrategyValidator::new(hash);
         let msgpack = strat_validator.json_to_msgpack(json).unwrap();
         assert!(strat_validator.validate_msgpack(&msgpack).is_ok());
     }
@@ -474,7 +510,11 @@ mod tests {
             ]
         }"#;
 
-        let strat_validator = StrategyValidator::new(vec!["sma_20".to_string(), "sma_100".to_string(), "vix".to_string()]);
+        let mut hash = HashSet::new();
+        hash.insert("sma_20".to_string());
+        hash.insert("sma_100".to_string());
+        hash.insert("vix".to_string());
+        let strat_validator = StrategyValidator::new(hash);
         let msgpack = strat_validator.json_to_msgpack(json).unwrap();
         assert!(strat_validator.validate_msgpack(&msgpack).is_ok());
     }
@@ -516,26 +556,33 @@ mod tests {
             ]
         }"#;
 
-        let strat_validator = StrategyValidator::new(vec!["rsi".to_string(), "volume".to_string()]);
+        let mut hash = HashSet::new();
+        hash.insert("rsi".to_string());
+        hash.insert("volume".to_string());
+        let strat_validator = StrategyValidator::new(hash);
         let msgpack = strat_validator.json_to_msgpack(json).unwrap();
         assert!(strat_validator.validate_msgpack(&msgpack).is_ok());
     }
-
 
     #[test]
     fn test_invalid_action_for_spot() {
         let json = r#"{ "meta": { "type": "spot" }, "actions": [{ "type": "long", "w": 0.5, "cond": { "eq": { "l": 1, "r": 1 } } }] }"#;
 
-        let strat_val = StrategyValidator::new(vec![]);
+        let hash = HashSet::new();
+        let strat_val = StrategyValidator::new(hash);
         let result = strat_val.json_to_msgpack(json);
-        assert!(matches!(result, Err(ValidationError::InvalidActionType(_, _))));
+        assert!(matches!(
+            result,
+            Err(ValidationError::InvalidActionType(_, _))
+        ));
     }
 
     #[test]
     fn test_invalid_weight() {
         let json = r#"{ "meta": { "type": "options" }, "actions": [{ "type": "short", "w": 2.0, "cond": { "gt": { "l": 1, "r": 0 } } }] }"#;
 
-        let strat_val = StrategyValidator::new(vec![]);
+        let hash = HashSet::new();
+        let strat_val = StrategyValidator::new(hash);
         let result = strat_val.json_to_msgpack(json);
         assert!(matches!(result, Err(ValidationError::InvalidWeight(_))));
     }
@@ -544,7 +591,8 @@ mod tests {
     fn test_empty_logical_op() {
         let json = r#"{ "meta": { "type": "spot" }, "actions": [{ "type": "buy", "w": 0.5, "cond": { "and": { "conds": [] } } }] }"#;
 
-        let strat_val = StrategyValidator::new(vec![]);
+        let hash = HashSet::new();
+        let strat_val = StrategyValidator::new(hash);
         let result = strat_val.json_to_msgpack(json);
         assert!(matches!(result, Err(ValidationError::MissingField(_))));
     }
@@ -570,12 +618,12 @@ mod tests {
           ]
         }"#;
 
-        let strat_val = StrategyValidator::new(vec![]);
+        let hash = HashSet::new();
+        let strat_val = StrategyValidator::new(hash);
         let result = strat_val.json_to_msgpack(json);
         assert!(matches!(result, Err(ValidationError::InvalidIndicator(_))));
     }
 }
-
 
 /*
 
@@ -640,10 +688,10 @@ impl StrategyValidator {
     pub fn validate_and_analyze(&self, strategy: &StrategyContent) -> Result<CostAnalysis, String> {
         // Step 1: Security validation (no injection, valid fields)
         self.validate_security(strategy)?;
-        
+
         // Step 2: Analyze computational cost
         let cost_analysis = self.analyze_cost(strategy);
-        
+
         Ok(cost_analysis)
     }
 
@@ -734,7 +782,7 @@ impl StrategyValidator {
                         action
                     }
                 };
-                
+
                 if !self.allowed_actions.contains(action_name) {
                     return Err(format!("Invalid action: {}", action_name));
                 }
@@ -768,7 +816,7 @@ impl StrategyValidator {
             + breakdown.branches * self.cost_config.cost_per_branch
             + (indicators_used.len() as u64) * self.cost_config.cost_per_indicator;
 
-        let node_count = (breakdown.comparisons + breakdown.logical_ops 
+        let node_count = (breakdown.comparisons + breakdown.logical_ops
                          + breakdown.advanced_ops + breakdown.branches) as usize;
 
         CostAnalysis {

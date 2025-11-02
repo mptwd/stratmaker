@@ -26,5 +26,5 @@ CREATE TABLE IF NOT EXISTS backtests (
   -- references to detailed results
   trades_url TEXT, -- S3/storage path to JSON/Parquet
   equity_curve_url TEXT,
-  positions_path TEXT,
-)
+  positions_path TEXT
+);

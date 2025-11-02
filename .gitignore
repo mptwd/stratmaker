@@ -2,5 +2,6 @@ backend/database
 backend/.env
 backend/target
 backend/.env.test
+backend/tests/target/
 
 dataset-manager/target

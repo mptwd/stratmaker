@@ -64,6 +64,9 @@ pub enum AppError {
 
     #[error("Strategy error {0}")]
     StratError(#[from] ValidationError),
+
+    #[error("MessagePack error {0}")]
+    MessagePackError(#[from] rmp_serde::encode::Error),
 }
 
 impl IntoResponse for AppError {
@@ -74,14 +77,15 @@ impl IntoResponse for AppError {
 
                 // Handle unique constraint violations
                 if let Some(db_err) = e.as_database_error()
-                    && db_err.constraint() == Some("users_email_key") {
-                        return (
-                            StatusCode::CONFLICT,
-                            Json(json!({
-                                "error": "User with this email already exists"
-                            })),
-                        )
-                            .into_response();
+                    && db_err.constraint() == Some("users_email_key")
+                {
+                    return (
+                        StatusCode::CONFLICT,
+                        Json(json!({
+                            "error": "User with this email already exists"
+                        })),
+                    )
+                        .into_response();
                 }
 
                 (
@@ -137,9 +141,19 @@ impl IntoResponse for AppError {
                 )
             }
             AppError::BacktestNotFound => (StatusCode::NOT_FOUND, "Backtest not found".to_string()),
-            AppError::BacktestProcessing => (StatusCode::PROCESSING, "Backtest is in process".to_string()),
-            AppError::StratError(ref e) => (StatusCode::BAD_REQUEST, format!("Strategy error: {}", e)),
-
+            AppError::BacktestProcessing => {
+                (StatusCode::PROCESSING, "Backtest is in process".to_string())
+            }
+            AppError::StratError(ref e) => {
+                (StatusCode::BAD_REQUEST, format!("Strategy error: {}", e))
+            }
+            AppError::MessagePackError(ref e) => {
+                tracing::error!("MessagePack encoding error: {:?}", e);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Internal server error".to_string(),
+                )
+            }
         };
 
         let body = Json(json!({

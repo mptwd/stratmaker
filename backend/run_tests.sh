@@ -10,7 +10,7 @@ NC='\033[0m' # No Color
 echo -e "${BLUE}🧪 Starting Rust Backend Integration Tests${NC}\n"
 
 # Check if Docker is running
-if ! sudo docker info > /dev/null 2>&1; then
+if ! docker info > /dev/null 2>&1; then
     echo -e "${RED}❌ Docker is not running. Please start Docker first.${NC}"
     exit 1
 fi
@@ -20,14 +20,14 @@ if [ -f .env.test ]; then
     export $(cat .env.test | xargs)
 else
     echo -e "${YELLOW}⚠️  .env.test not found, using default values${NC}"
-    export TEST_DATABASE_URL="postgresql://postgresql:postgresql@localhost:5433/test_backend"
+    export TEST_DATABASE_URL="postgresql://postgres:postgres@localhost:5434/test_postgres"
     export TEST_REDIS_URL="redis://localhost:6380"
 fi
 
 echo -e "${YELLOW}🐳 Starting test dependencies...${NC}"
 
 # Start test database and Redis
-sudo docker compose up -d db_test redis_test
+docker compose up -d db_test redis_test
 
 # Wait for databases to be ready
 echo -e "${YELLOW}⏳ Waiting for databases to be ready...${NC}"
@@ -77,8 +77,8 @@ fi
 
 # Cleanup
 echo -e "${YELLOW}🧹 Cleaning up test environment...${NC}"
-sudo docker compose stop db_test redis_test
-sudo docker compose rm -f db_test redis_test
+docker compose stop db_test redis_test
+docker compose rm -f db_test redis_test
 
 # Final result
 echo -e "${BLUE}==================== FINAL RESULTS ====================${NC}"

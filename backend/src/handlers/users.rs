@@ -1,7 +1,4 @@
-use axum::{
-    extract::State,
-    response::Json,
-};
+use axum::{extract::State, response::Json};
 use axum_extra::extract::{CookieJar, cookie::Cookie};
 use serde_json::{Value, json};
 
@@ -10,17 +7,10 @@ use crate::{
     auth::{hash_password, verify_password},
     errors::AppError,
     extractors::AuthenticatedUser,
-    models::{
-        AuthResponse,
-        LoginRequest,
-        RegisterRequest,
-        UserResponse,
-        ChangePasswordRequest
-    },
+    models::{AuthResponse, ChangePasswordRequest, LoginRequest, RegisterRequest, UserResponse},
     validators::{
-        password_validator::validate_password,
+        email_validator::validate_email, password_validator::validate_password,
         username_validator::validate_username,
-        email_validator::validate_email,
     },
 };
 
@@ -68,13 +58,13 @@ pub async fn login(
     let user = state
         .db
         .get_user_by_email(&payload.email) // is this safe ? should i check if email is good first
-                                           // to avoid sql injections ?
+        // to avoid sql injections ?
         .await?
         .ok_or(AppError::Unauthorized)?;
 
     // Verify password
     // is this safe ? should i check if email is good first to avoid sql injections ?
-    if !verify_password(&payload.password, &user.password_hash)? { 
+    if !verify_password(&payload.password, &user.password_hash)? {
         return Err(AppError::Unauthorized);
     }
 
@@ -85,7 +75,7 @@ pub async fn login(
     let session_cookie = Cookie::build(("session_id", session_id))
         .http_only(true)
         .secure(true) // Use only in HTTPS in production
-        .same_site(cookie::SameSite::Lax) // TODO: What is Lax ?
+        .same_site(cookie::SameSite::Lax) // NOTE: What is Lax ?
         .path("/")
         .max_age(cookie::time::Duration::days(1));
 
@@ -152,7 +142,10 @@ pub async fn change_password(
         return Err(AppError::Unauthorized);
     }
 
-    state.db.update_user_password(user_id, &payload.new_password).await?;
-        
+    state
+        .db
+        .update_user_password(user_id, &payload.new_password)
+        .await?;
+
     Ok(Json(json!({"message": "Password changed"})))
 }

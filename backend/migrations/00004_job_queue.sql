@@ -51,11 +51,11 @@ CREATE INDEX idx_jobs_created_at ON jobs (created_at DESC);
 
 -- For cleanup of old completed jobs
 CREATE INDEX idx_jobs_cleanup ON jobs (status, completed_at)
-    WHERE status IN ('completed', 'cancelled');
+    WHERE status IN ('done', 'cancelled');
 
--- Partial index for stuck jobs (processing too long)
+-- Partial index for stuck jobs (running too long)
 CREATE INDEX idx_jobs_stuck ON jobs (status, started_at)
-    WHERE status = 'processing';
+    WHERE status = 'running';
 
 -- Function to enqueue a job
 CREATE OR REPLACE FUNCTION enqueue_job(
@@ -127,7 +127,7 @@ BEGIN
     -- Update job status
     UPDATE jobs
     SET 
-        status = 'processing',
+        status = 'running',
         started_at = NOW(),
         worker_id = p_worker_id,
         retry_count = retry_count + 1
@@ -152,10 +152,10 @@ DECLARE
 BEGIN
     UPDATE jobs
     SET 
-        status = 'completed',
+        status = 'done',
         completed_at = NOW()
     WHERE id = p_job_id
-        AND status = 'processing';
+        AND status = 'running';
     
     GET DIAGNOSTICS rows_updated = ROW_COUNT;
     RETURN rows_updated > 0;
@@ -187,7 +187,7 @@ BEGIN
             completed_at = NOW(),
             last_error = p_error_message
         WHERE id = p_job_id
-            AND status = 'processing';
+            AND status = 'running';
     ELSE
         -- Otherwise, mark as pending for retry
         UPDATE jobs
@@ -197,7 +197,7 @@ BEGIN
             -- Exponential backoff: 2^retry_count minutes
             scheduled_for = NOW() + (POWER(2, retry_count) || ' minutes')::INTERVAL
         WHERE id = p_job_id
-            AND status = 'processing';
+            AND status = 'running';
     END IF;
     
     GET DIAGNOSTICS rows_updated = ROW_COUNT;
@@ -218,7 +218,7 @@ BEGIN
         started_at = NULL,
         worker_id = NULL,
         last_error = 'Job timed out and was recovered'
-    WHERE status = 'processing'
+    WHERE status = 'running'
         AND started_at < NOW() - (timeout_seconds || ' seconds')::INTERVAL;
     
     GET DIAGNOSTICS recovered_count = ROW_COUNT;
@@ -233,7 +233,7 @@ DECLARE
     deleted_count INTEGER;
 BEGIN
     DELETE FROM jobs
-    WHERE status IN ('completed', 'cancelled')
+    WHERE status IN ('done', 'cancelled')
         AND completed_at < NOW() - (p_days_old || ' days')::INTERVAL;
     
     GET DIAGNOSTICS deleted_count = ROW_COUNT;
@@ -264,7 +264,7 @@ SELECT
     EXTRACT(EPOCH FROM (NOW() - started_at)) as stuck_for_seconds,
     timeout_seconds
 FROM jobs
-WHERE status = 'processing'
+WHERE status = 'running'
     AND started_at < NOW() - (timeout_seconds || ' seconds')::INTERVAL
 ORDER BY started_at;
 
