@@ -168,8 +168,9 @@ pub mod assertions {
     pub fn assert_success_response(response: &TestResponse) {
         assert!(
             response.status_code().is_success(),
-            "Expected success status, got: {}",
-            response.status_code()
+            "Expected success status, got: {},\n message: {}",
+            response.status_code(),
+            response.text(),
         );
     }
 

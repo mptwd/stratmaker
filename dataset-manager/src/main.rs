@@ -1,17 +1,22 @@
-use std::{
-    collections::HashMap,
-    fs::File,
-};
 use chrono::{DateTime, Utc};
+use std::{collections::HashMap, fs::File};
 //use memmap2::Mmap;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use tokio::net::TcpListener;
 //use nix::sys::socket::{sendmsg, ControlMessage, MsgFlags};
 
 use axum::{
-    extract::{Path, State}, http::StatusCode, response::Json, routing::{get, post}, Router
+    Router,
+    extract::{Path, State},
+    http::StatusCode,
+    response::Json,
+    routing::{get, post},
 };
-use std::{sync::{Arc, RwLock}, net::SocketAddr};
+use std::{
+    env,
+    net::SocketAddr,
+    sync::{Arc, RwLock},
+};
 
 #[derive(Clone, Serialize, Deserialize)]
 struct DatasetInfo {
@@ -27,13 +32,12 @@ struct DatasetInfo {
 
 #[derive(Clone)]
 struct AppState {
+    arg_path: String,
     datasets: Arc<RwLock<HashMap<String, DatasetInfo>>>,
 }
 
-
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
-
     // Unix socket, doing only http listener for now
     /*
     let listener = UnixListener::bind("/tmp/dataset_manager.sock")?;
@@ -42,9 +46,10 @@ async fn main() -> std::io::Result<()> {
         handle_client(&mut stream, &datasets)?;
     }
     */
+    let arg_path = env::args().nth(1).expect("No argument provided");
 
-    let datasets = Arc::new(RwLock::new(load_datasets()?));
-    let state = AppState { datasets };
+    let datasets = Arc::new(RwLock::new(load_datasets(&arg_path)?));
+    let state = AppState { arg_path, datasets };
 
     let app = Router::new()
         .route("/datasets", get(list_datasets))
@@ -85,11 +90,11 @@ fn handle_client(stream: &mut UnixStream, datasets: &HashMap<String, Dataset>) -
 }
 */
 
-
-fn load_datasets() -> Result<HashMap<String, DatasetInfo>, std::io::Error> {
+fn load_datasets(path: &str) -> Result<HashMap<String, DatasetInfo>, std::io::Error> {
     // Normally you’d read all .meta.json files from your datasets directory
     let mut map = HashMap::new();
-    for entry in std::fs::read_dir("../datasets")? {
+    //for entry in std::fs::read_dir("../datasets")? {
+    for entry in std::fs::read_dir(path)? {
         let entry = entry?;
         let path = entry.path();
 
@@ -107,18 +112,16 @@ fn load_datasets() -> Result<HashMap<String, DatasetInfo>, std::io::Error> {
             }
 
             match File::open(&meta_path) {
-                Ok(file) => {
-                    match serde_json::from_reader::<_, DatasetInfo>(file) {
-                        Ok(meta) => {
-                            let key = format!("{}-{}", meta.asset, meta.timeframe);
-                            println!("Loaded dataset: {}", key);
-                            map.insert(key, meta);
-                        }
-                        Err(e) => {
-                            eprintln!("Error parsing meta.json for {:?}: {}", meta_path, e);
-                        }
+                Ok(file) => match serde_json::from_reader::<_, DatasetInfo>(file) {
+                    Ok(meta) => {
+                        let key = format!("{}-{}", meta.asset, meta.timeframe);
+                        println!("Loaded dataset: {}", key);
+                        map.insert(key, meta);
                     }
-                }
+                    Err(e) => {
+                        eprintln!("Error parsing meta.json for {:?}: {}", meta_path, e);
+                    }
+                },
                 Err(e) => {
                     eprintln!("Error opening {:?}: {}", meta_path, e);
                 }
@@ -134,9 +137,7 @@ fn load_datasets() -> Result<HashMap<String, DatasetInfo>, std::io::Error> {
     Ok(map)
 }
 
-async fn list_datasets(
-    State(state): State<AppState>,
-) -> Json<Vec<DatasetInfo>> {
+async fn list_datasets(State(state): State<AppState>) -> Json<Vec<DatasetInfo>> {
     let lock = state.datasets.read().unwrap();
     Json(lock.values().cloned().collect())
 }
@@ -152,19 +153,17 @@ async fn get_dataset(
         .ok_or(StatusCode::NOT_FOUND)
 }
 
-async fn reload_all(
-    State(state): State<AppState>,
-) -> Result<Json<String>, (StatusCode, String)> {
-    match load_datasets() {
+async fn reload_all(State(state): State<AppState>) -> Result<Json<String>, (StatusCode, String)> {
+    match load_datasets(&state.arg_path) {
         Ok(new_data) => {
             let mut lock = state.datasets.write().unwrap();
             let count = new_data.len();
             *lock = new_data;
             Ok(Json(format!("Reloaded {} datasets", count)))
         }
-        Err(e) => {
-            Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to reload: {}", e)))
-        }
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to reload: {}", e),
+        )),
     }
 }
-

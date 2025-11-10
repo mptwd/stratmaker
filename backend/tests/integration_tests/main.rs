@@ -1,4 +1,4 @@
-// mod backtest;
+mod backtest;
 mod get_current_user;
 mod helper;
 mod login;

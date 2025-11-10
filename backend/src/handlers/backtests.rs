@@ -62,12 +62,13 @@ pub async fn request_backtest(
     // TODO: Log the dataset and start/end time for metrics
 
     // Add backtest to job queue or whatever
-    state.db.enqueue_backtest(&strat.content.0, 1).await?; // TODO: Make the priority system
+    let job_id = state.db.enqueue_backtest(&strat.content.0, 1).await?; // TODO: Make the priority system
 
     // Returning only the backtest's initial status
     Ok(Json(backtest.status))
 }
 
+// NOTE: This handler is possibly not needed anymore
 pub async fn backtest_status(
     State(state): State<AppState>,
     AuthenticatedUser(user_id): AuthenticatedUser,
@@ -83,10 +84,22 @@ pub async fn backtest_results(
     Path(backtest_id): Path<Uuid>,
 ) -> Result<Json<Backtest>, AppError> {
     let status = state.db.get_backtest_status(backtest_id, user_id).await?;
-    if status == BacktestStatus::Done {
-        let backtest = state.db.get_backtest_by_id(backtest_id, user_id).await?;
-        Ok(Json(backtest))
-    } else {
-        Err(AppError::BacktestProcessing)
+    match status {
+        BacktestStatus::Done => {
+            let backtest = state.db.get_backtest_by_id(backtest_id, user_id).await?;
+            // TODO: Send the results rather than the backtest.
+            Ok(Json(backtest))
+        }
+        BacktestStatus::Failed | BacktestStatus::Cancelled => {
+            let backtest = state.db.get_backtest_by_id(backtest_id, user_id).await?;
+            // HACK: Just sending the backtest here cause the failed status is in it
+            Ok(Json(backtest))
+        }
+        BacktestStatus::Pending | BacktestStatus::Running => {
+            // TODO: Get the job's status
+            // And basically do the same as above again
+            let backtest = state.db.get_backtest_by_id(backtest_id, user_id).await?;
+            Ok(Json(backtest))
+        }
     }
 }

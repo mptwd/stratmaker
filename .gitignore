@@ -4,4 +4,9 @@ backend/target
 backend/.env.test
 backend/tests/target/
 
+frontend/target
+frontend/dist/
+
+target/
+
 dataset-manager/target

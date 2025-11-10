@@ -1,0 +1,13 @@
+{
+  "asset": "BTCUSDT",
+  "timeframe": "1m",
+  "start": "2017-01-01T00:00:00Z",
+  "end": "2022-12-31T00:00:00Z",
+  "count": 1000000,
+  "version": 1,
+  "path": "BTCUSDT_1m.bin",
+  "ta": [
+    "sma_10",
+    "sma_50"
+  ]
+}

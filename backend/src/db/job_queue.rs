@@ -1,4 +1,4 @@
-use crate::Database;
+use crate::{Database, models::BacktestStatus};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -68,5 +68,27 @@ impl Database {
         // WARN: Hard coded some values, but it's probably not the right aproach
         self.enqueue(JobType::ProcessBacktest, &payload, priority, 3, 0, 600)
             .await
+    }
+
+    pub async fn get_job_status(&self, job_id: i64) -> Result<BacktestStatus, AppError> {
+        let status = sqlx::query(
+            r#"
+            SELECT status FROM jobs WHERE id = $1
+            "#,
+        )
+        .bind(job_id)
+        .fetch_one(&self.pool)
+        .await;
+
+        match status {
+            Ok(s) => {}
+            Err(e) => {
+                if e == sqlx::Error::RowNotFound {
+                    // Job was done to long ago...
+                }
+            }
+        }
+
+        Ok(BacktestStatus::Pending)
     }
 }

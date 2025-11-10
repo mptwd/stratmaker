@@ -26,6 +26,14 @@ fi
 
 echo -e "${YELLOW}🐳 Starting test dependencies...${NC}"
 
+# Start the dataset manager
+project_dir=$(cargo locate-project | jq -r '.root')
+top_dir=$(dirname $(dirname $project_dir))
+# HACK: getting the debug binary, but i guess i should use the release one when it exists
+dataset_manager="$top_dir/dataset-manager/target/debug/dataset-manager"
+eval "$dataset_manager $(dirname $project_dir)/tests/test_datasets &"
+dataset_manager_pid=$!
+
 # Start test database and Redis
 docker compose up -d db_test redis_test
 
@@ -49,7 +57,7 @@ if ! redis-cli -p 6380 ping > /dev/null 2>&1; then
     exit 1
 fi
 
-DATABASE_URL=$TEST_DATABASE_URL sqlx database create
+DATABASE_URL=$TEST_DATABASE_URL $HOME/.cargo/bin/sqlx database create
 
 echo -e "${GREEN}✅ Dependencies are ready!${NC}\n"
 
@@ -80,11 +88,13 @@ echo -e "${YELLOW}🧹 Cleaning up test environment...${NC}"
 docker compose stop db_test redis_test
 docker compose rm -f db_test redis_test
 
+trap "kill $dataset_manager_pid 2>/dev/null" EXIT
+
 # Final result
 echo -e "${BLUE}==================== FINAL RESULTS ====================${NC}"
 
 if [ "$TEST_SUCCESS" = true ] && [ "$UNIT_SUCCESS" = true ]; then
-    echo -e "${GREEN}🎉 ALL TESTS PASSED! Your backend is solid! 🚀${NC}"
+    echo -e "${GREEN}🎉 ALL TESTS PASSED! 🚀${NC}"
     exit 0
 else
     echo -e "${RED}❌ Some tests failed. Please check the output above.${NC}"

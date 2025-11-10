@@ -1,0 +1,23 @@
+[package]
+name = "frontend"
+version = "0.1.0"
+edition = "2024"
+
+# WARN: Make sure you take dependencies that are WASM32 compatible
+[dependencies]
+# --- The frontend framework ---
+yew = { git = "https://github.com/yewstack/yew/", features = ["csr"] }
+
+# --- For making api calls ---
+gloo-net = "0.2"
+serde = { version = "1.0", features = ["derive"] }
+
+# --- For executing Rust Future as a Promise
+wasm-bindgen-futures = "0.4"
+
+log = "0.4"
+console_log = "1"
+yew-router = { git = "https://github.com/yewstack/yew/" }
+web-sys = "0.3.82"
+serde_json = "1.0.145"
+gloo-timers = "0.3.0"

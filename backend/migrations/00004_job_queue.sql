@@ -6,35 +6,35 @@ CREATE TYPE job_status AS ENUM ('pending', 'running', 'done', 'failed', 'cancell
 --- This is a general job table, it is not fixed to backtests jobs (if i ever need another type of job)
 CREATE TABLE jobs (
     id BIGSERIAL PRIMARY KEY,
-    
+
     -- Job identification
     job_type VARCHAR(100) NOT NULL,
-    
+
     -- Payload stored as MessagePack for efficiency
     payload BYTEA NOT NULL,
-    
-    -- Status tracking
-    status job_status NOT NULL DEFAULT 'pending',
-    
+ 
     -- Priority (higher = more important)
     priority INTEGER NOT NULL DEFAULT 0,
-    
+
+    -- Status tracking
+    status job_status NOT NULL DEFAULT 'pending',
+
     -- Retry logic
     max_retries INTEGER NOT NULL DEFAULT 3,
     retry_count INTEGER NOT NULL DEFAULT 0,
-    
+
     -- Timing
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     scheduled_for TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- For delayed jobs
     started_at TIMESTAMPTZ,
     completed_at TIMESTAMPTZ,
-    
+
     -- Error tracking
     last_error TEXT,
-    
+
     -- Worker tracking (optional, for debugging)
     worker_id VARCHAR(100),
-    
+
     -- Metadata
     timeout_seconds INTEGER NOT NULL DEFAULT 300
 );
