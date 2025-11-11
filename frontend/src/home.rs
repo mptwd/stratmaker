@@ -9,7 +9,7 @@ pub fn landing_page() -> Html {
         <div class="landing-page">
             <nav class="navbar">
                 <div class="container">
-                    <h1 class="logo">{"StrategyBuilder"}</h1>
+                    <h1 class="logo">{"StrategyMaker"}</h1>
                     <div class="nav-links">
                         <Link<Route> to={Route::Login} classes="btn-secondary">{"Login"}</Link<Route>>
                         <Link<Route> to={Route::Register} classes="btn-primary">{"Get Started"}</Link<Route>>
@@ -33,7 +33,7 @@ pub fn landing_page() -> Html {
 
             <section class="features">
                 <div class="container">
-                    <h2 class="section-title">{"Why Choose StrategyBuilder?"}</h2>
+                    <h2 class="section-title">{"Why Choose StrategyMaker?"}</h2>
                     <div class="features-grid">
                         <div class="feature-card">
                             <div class="feature-icon">{"📊"}</div>
@@ -105,7 +105,7 @@ pub fn landing_page() -> Html {
 
             <footer class="footer">
                 <div class="container">
-                    <p>{"© 2025 StrategyBuilder. Built with Rust & Yew."}</p>
+                    <p>{"© 2025 StrategyMaker. Built with Rust & Yew."}</p>
                 </div>
             </footer>
         </div>

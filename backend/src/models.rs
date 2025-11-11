@@ -1,9 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{
-    types::Json,
-    Type,
-};
+use sqlx::{Type, types::Json};
 use uuid::Uuid;
 
 use crate::validators::strategy_validator::StrategyContent;
@@ -45,7 +42,6 @@ pub struct UserResponse {
     pub created_at: DateTime<Utc>,
 }
 
-
 impl From<User> for UserResponse {
     fn from(user: User) -> Self {
         Self {
@@ -83,7 +79,8 @@ pub struct StrategyResumed {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateStrategyRequest {
     pub title: String,
-    pub content: StrategyContent,
+    //pub content: StrategyContent,
+    pub content: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -111,8 +108,7 @@ pub struct Backtest {
     pub date_start: DateTime<Utc>,
     pub date_end: DateTime<Utc>,
     pub created_at: DateTime<Utc>,
-
-//    pub result_summary: Json(ResultSummary), Do i need that here ?
+    //    pub result_summary: Json(ResultSummary), Do i need that here ?
 }
 
 #[derive(Debug, Serialize, Deserialize)]

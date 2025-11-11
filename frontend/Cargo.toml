@@ -15,6 +15,19 @@ serde = { version = "1.0", features = ["derive"] }
 # --- For executing Rust Future as a Promise
 wasm-bindgen-futures = "0.4"
 
+# --- For uuids ---
+uuid = { version = "1.0", features = ["v4", "serde", "js"] }
+
+# --- For time ---
+chrono = { version = "0.4", features = ["serde"] }
+
+# --- For message pack ---
+rmp-serde = "1.3"
+
+# --- For encoding tokens into URL-safe strings ---
+base64 = "0.22"
+
+
 log = "0.4"
 console_log = "1"
 yew-router = { git = "https://github.com/yewstack/yew/" }

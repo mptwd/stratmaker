@@ -64,6 +64,9 @@ async-trait = "0.1"
 # --- To communicate with other services ---
 reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
 
+# --- For cors ---
+tower-http = { version = "0.5", features = ["cors"] }
+
 [dev-dependencies]
 axum-test = "14.0"
 tokio-test = "0.4"

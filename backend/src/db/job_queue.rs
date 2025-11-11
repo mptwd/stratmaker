@@ -82,11 +82,10 @@ impl Database {
 
         match status {
             Ok(s) => {}
-            Err(e) => {
-                if e == sqlx::Error::RowNotFound {
-                    // Job was done to long ago...
-                }
+            Err(sqlx::Error::RowNotFound) => {
+                // Job was done to long ago...
             }
+            Err(e) => {}
         }
 
         Ok(BacktestStatus::Pending)

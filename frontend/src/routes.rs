@@ -1,3 +1,4 @@
+use uuid::Uuid;
 use yew::prelude::*;
 use yew_router::prelude::*;
 
@@ -20,7 +21,7 @@ pub enum Route {
     #[at("/app")]
     App,
     #[at("/app/strategy/:id")]
-    Strategy { id: String },
+    Strategy { id: Uuid },
     #[at("/app/new")]
     NewStrategy,
 }

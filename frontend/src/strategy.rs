@@ -1,45 +1,128 @@
-use crate::routes::Route;
+use crate::{error::ErrorResponse, routes::Route};
+use chrono::{DateTime, Utc};
+use gloo_net::http::Request;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 use yew::prelude::*;
 use yew_router::prelude::*;
+
+/* ==== Strategy structs ==== */
+
+#[derive(Clone, PartialEq, Deserialize)]
+pub struct StrategyResumed {
+    pub id: Uuid,
+    pub title: String,
+}
 
 // Strategy data structures
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct Strategy {
-    pub id: String,
-    pub name: String,
-    pub meta: StrategyMeta,
-    pub actions: Vec<Action>,
-    pub created_at: String,
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub title: String,
+    pub content: StrategyContent,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct StrategyMeta {
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum StrategyType {
+    Spot,
+    Options,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Meta {
     #[serde(rename = "type")]
-    pub strategy_type: String,
+    pub strategy_type: StrategyType,
+    //#[serde(flatten)]
+    //pub extra: std::collections::HashMap<String, rmpv::Value>,
 }
 
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum Value {
+    Number(f64),
+    //Boolean(bool),
+    Indicator(String),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum Cond {
+    And {
+        conds: Vec<Cond>,
+    },
+    Or {
+        conds: Vec<Cond>,
+    },
+    Not {
+        cond: Box<Cond>,
+    },
+    #[serde(rename = "lt")]
+    LessThan {
+        l: Box<Value>,
+        r: Box<Value>,
+    },
+    #[serde(rename = "gt")]
+    GreaterThan {
+        l: Box<Value>,
+        r: Box<Value>,
+    },
+    #[serde(rename = "le")]
+    LessThanOrEqual {
+        l: Box<Value>,
+        r: Box<Value>,
+    },
+    #[serde(rename = "ge")]
+    GreaterThanOrEqual {
+        l: Box<Value>,
+        r: Box<Value>,
+    },
+    #[serde(rename = "eq")]
+    Equal {
+        l: Box<Value>,
+        r: Box<Value>,
+    },
+    #[serde(rename = "neq")]
+    NotEqual {
+        l: Box<Value>,
+        r: Box<Value>,
+    },
+    #[serde(rename = "bet")]
+    Between {
+        val: Box<Value>,
+        min: Box<Value>,
+        max: Box<Value>,
+    },
+    #[serde(rename = "xab")]
+    CrossesAbove {
+        l: Box<Value>,
+        r: Box<Value>,
+    },
+    #[serde(rename = "xbe")]
+    CrossesBelow {
+        l: Box<Value>,
+        r: Box<Value>,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Action {
     #[serde(rename = "type")]
     pub action_type: String,
     pub w: f64,
-    pub cond: Condition,
+    pub cond: Cond,
 }
 
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct Condition {
-    #[serde(flatten)]
-    pub op: ConditionOp,
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct StrategyContent {
+    pub meta: Meta,
+    pub actions: Vec<Action>,
 }
 
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum ConditionOp {
-    Gt { l: String, r: String },
-    Lt { l: String, r: String },
-    Eq { l: String, r: String },
-}
+/* ==== Backtest structs ==== */
 
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct BacktestResult {
@@ -66,29 +149,61 @@ pub struct BalancePoint {
 // Strategy Detail Page with Backtest
 #[derive(Properties, PartialEq)]
 pub struct StrategyDetailProps {
-    pub strategy_id: String,
+    pub strategy_id: Uuid,
 }
 
 #[function_component(StrategyDetailPage)]
 pub fn strategy_detail_page(props: &StrategyDetailProps) -> Html {
-    let strategy = use_state(|| Strategy {
-        id: props.strategy_id.clone(),
-        name: "SMA Crossover Strategy".to_string(),
-        meta: StrategyMeta {
-            strategy_type: "spot".to_string(),
-        },
-        actions: vec![Action {
-            action_type: "buy".to_string(),
-            w: 0.8,
-            cond: Condition {
-                op: ConditionOp::Gt {
-                    l: "sma_10".to_string(),
-                    r: "sma_50".to_string(),
-                },
-            },
-        }],
-        created_at: "2025-01-15".to_string(),
-    });
+    let error = use_state(|| Option::<String>::None);
+    let strategy: UseStateHandle<Option<Strategy>> = use_state(|| None);
+    {
+        let strategy = strategy.clone();
+        let error = error.clone();
+        let strategy_id = props.strategy_id;
+        use_effect_with((), move |_| {
+            let strategy = strategy.clone();
+            let error = error.clone();
+            wasm_bindgen_futures::spawn_local(async move {
+                // HACK: Using POST her even though it would be cleaner with a GET
+                let response = Request::post("/api/strategy")
+                    .json(&serde_json::json!({
+                        "id": strategy_id,
+                    }))
+                    .unwrap()
+                    .send()
+                    .await;
+                match response {
+                    // We got a response, and it's OK.
+                    Ok(r) if r.status() == 200 => {
+                        let fetched_strategy = r.json::<Strategy>().await;
+                        match fetched_strategy {
+                            Ok(strat) => {
+                                strategy.set(Some(strat));
+                            }
+                            Err(e) => error.set(Some(format!("Failed to fetch strategy: {}", e))),
+                        }
+                    }
+                    // We got a response, but it's an error.
+                    Ok(r) => {
+                        let err_msg = r.json::<ErrorResponse>().await;
+                        match err_msg {
+                            Ok(e_msg) => {
+                                error.set(Some(format!("Failed to load strat: {}", e_msg.error)))
+                            }
+                            Err(_) => error.set(Some(format!(
+                                "Failed to load strat no message: {}",
+                                r.status_text()
+                            ))),
+                        }
+                    }
+                    // We did not even get a response.
+                    Err(e) => {
+                        error.set(Some(format!("Failed to load anything: {}", e)));
+                    }
+                }
+            });
+        })
+    }
 
     let backtest_result = use_state(|| Option::<BacktestResult>::None);
     let is_loading = use_state(|| false);
@@ -190,48 +305,67 @@ pub fn strategy_detail_page(props: &StrategyDetailProps) -> Html {
         serde_json::to_string_pretty(&*strategy).unwrap_or_else(|_| "Error".to_string());
 
     html! {
-        <div class="app-page">
-            <nav class="app-navbar">
-                <div class="container">
-                    <h1 class="logo">{"StrategyBuilder"}</h1>
-                    <div class="nav-links">
-                        <Link<Route> to={Route::App} classes="btn-secondary">{"← Back to Strategies"}</Link<Route>>
-                    </div>
-                </div>
-            </nav>
-            <div class="app-content">
-                <div class="container">
-                    <div class="page-header">
-                        <h1>{&strategy.name}</h1>
-                        <button
-                            class="btn-primary"
-                            onclick={on_backtest}
-                            disabled={*is_loading}
-                        >
-                            {if *is_loading { "Running Backtest..." } else { "Run Backtest" }}
-                        </button>
-                    </div>
-
-                    <div class="strategy-detail-grid">
-                        <div class="strategy-json-view">
-                            <h2>{"Strategy Configuration"}</h2>
-                            <pre class="json-display">{strategy_json}</pre>
-                        </div>
-
-                        {if let Some(result) = (*backtest_result).as_ref() {
-                            html! { <BacktestResults result={result.clone()} /> }
-                        } else {
-                            html! {
-                                <div class="backtest-placeholder">
-                                    <h2>{"No Backtest Results Yet"}</h2>
-                                    <p>{"Click 'Run Backtest' to see how your strategy performs"}</p>
-                                </div>
-                            }
-                        }}
-                    </div>
+    <div class="app-page">
+        <nav class="app-navbar">
+            <div class="container">
+                <h1 class="logo">{"StrategyMaker"}</h1>
+                <div class="nav-links">
+                    <Link<Route> to={Route::App} classes="btn-secondary">{"← Back to Strategies"}</Link<Route>>
                 </div>
             </div>
+        </nav>
+        <div class="app-content">
+            <div class="container">
+                {
+                if let Some(strategy) = strategy.as_ref() {
+                html! {
+                <>
+                <div class="page-header">
+                    <h1>{&strategy.title}</h1>
+                    <button
+                        class="btn-primary"
+                        onclick={on_backtest}
+                        disabled={*is_loading}
+                    >
+                        {if *is_loading { "Running Backtest..." } else { "Run Backtest" }}
+                    </button>
+                </div>
+
+                <div class="strategy-detail-grid">
+                    <div class="strategy-json-view">
+                        <h2>{"Strategy Configuration"}</h2>
+                        <pre class="json-display">{strategy_json}</pre>
+                    </div>
+
+                    {if let Some(result) = (*backtest_result).as_ref() {
+                    html! { <BacktestResults result={result.clone()} /> }
+                    } else {
+                    html! {
+                    <div class="backtest-placeholder">
+                        <h2>{"No Backtest Results Yet"}</h2>
+                        <p>{"Click 'Run Backtest' to see how your strategy performs"}</p>
+                    </div>
+                    }
+                    }}
+                </div>
+                </>
+                }
+                }
+                else {
+                html! {
+                {
+                if let Some(err) = (*error).as_ref() {
+                html! { <div class="error-message">{ err }</div> }
+                } else {
+                html! { <div class="error-message">{ "No strategy loaded." }</div> }
+                }
+                }
+                }
+                }
+                }
+            </div>
         </div>
+    </div>
     }
 }
 

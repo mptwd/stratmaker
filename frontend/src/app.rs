@@ -1,33 +1,54 @@
+use crate::error::ErrorResponse;
 use crate::routes::Route;
-use crate::strategy::{Strategy, StrategyMeta};
+use crate::strategy::StrategyResumed;
+use gloo_net::http::Request;
 use yew::prelude::*;
 use yew_router::prelude::*;
 
 // App Page - Strategy List
 #[function_component(AppPage)]
 pub fn app_page() -> Html {
-    let strategies = use_state(|| {
-        vec![
-            Strategy {
-                id: "1".to_string(),
-                name: "SMA Crossover Strategy".to_string(),
-                meta: StrategyMeta {
-                    strategy_type: "spot".to_string(),
-                },
-                actions: vec![],
-                created_at: "2025-01-15".to_string(),
-            },
-            Strategy {
-                id: "2".to_string(),
-                name: "RSI Momentum Strategy".to_string(),
-                meta: StrategyMeta {
-                    strategy_type: "spot".to_string(),
-                },
-                actions: vec![],
-                created_at: "2025-01-10".to_string(),
-            },
-        ]
-    });
+    let error = use_state(|| Option::<String>::None);
+    let strategies: UseStateHandle<Vec<StrategyResumed>> = use_state(|| vec![]);
+    {
+        let strategies = strategies.clone();
+        let error = error.clone();
+        use_effect_with((), move |_| {
+            let strategies = strategies.clone();
+            let error = error.clone();
+            wasm_bindgen_futures::spawn_local(async move {
+                let response = Request::get("/api/strategy/all").send().await;
+                match response {
+                    // We got a response, and it's OK.
+                    Ok(r) if r.status() == 200 => {
+                        let fetched_strategies = r.json::<Vec<StrategyResumed>>().await;
+                        match fetched_strategies {
+                            Ok(strats) => {
+                                strategies.set(strats);
+                            }
+                            Err(e) => error.set(Some(format!("Failed to login: {}", e))),
+                        }
+                    }
+                    // We got a response, but it's an error.
+                    Ok(r) => {
+                        let err_msg = r.json::<ErrorResponse>().await;
+                        match err_msg {
+                            Ok(e_msg) => {
+                                error.set(Some(format!("Failed to login: {}", e_msg.error)))
+                            }
+                            Err(_) => {
+                                error.set(Some(format!("Failed to login: {}", r.status_text())))
+                            }
+                        }
+                    }
+                    // We did not even get a response.
+                    Err(e) => {
+                        error.set(Some(format!("Failed to login: {}", e)));
+                    }
+                }
+            });
+        })
+    }
 
     let navigator = use_navigator().unwrap();
 
@@ -41,7 +62,7 @@ pub fn app_page() -> Html {
         <div class="app-page">
             <nav class="app-navbar">
                 <div class="container">
-                    <h1 class="logo">{"StrategyBuilder"}</h1>
+                    <h1 class="logo">{"StrategyMaker"}</h1>
                     <div class="nav-links">
                         <button class="btn-secondary" onclick={on_logout}>{"Logout"}</button>
                     </div>
@@ -49,6 +70,11 @@ pub fn app_page() -> Html {
             </nav>
             <div class="app-content">
                 <div class="container">
+                    {if let Some(err) = (*error).as_ref() {
+                        html! { <div class="error-message">{err}</div> }
+                    } else {
+                        html! {}
+                    }}
                     <div class="page-header">
                         <h1>{"Your Strategies"}</h1>
                         <Link<Route> to={Route::NewStrategy} classes="btn-primary">
@@ -60,12 +86,11 @@ pub fn app_page() -> Html {
                         {for strategies.iter().map(|strategy| {
                             let strategy_id = strategy.id.clone();
                             html! {
-                                <div class="strategy-card" key={strategy.id.clone()}>
+                                <div class="strategy-card" key={strategy.id.to_string()}>
                                     <div class="strategy-header">
-                                        <h3>{&strategy.name}</h3>
-                                        <span class="strategy-type">{&strategy.meta.strategy_type}</span>
+                                        <h3>{&strategy.title}</h3>
                                     </div>
-                                    <p class="strategy-date">{"Created: "}{&strategy.created_at}</p>
+                                    //<p class="strategy-date">{"Created: "}{&strategy.created_at}</p>
                                     <div class="strategy-actions">
                                         <Link<Route> to={Route::Strategy { id: strategy_id }} classes="btn-primary btn-small">
                                             {"View & Test"}

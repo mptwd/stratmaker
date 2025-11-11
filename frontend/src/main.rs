@@ -1,4 +1,5 @@
 mod app;
+mod error;
 mod home;
 mod login;
 mod new_strategy;

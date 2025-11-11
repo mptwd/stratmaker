@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS backtests (
   date_end TIMESTAMPTZ NOT NULL,
 
   -- Last job id that actually computed, or is computing the backtest.
-  job_id BIGSERIAL REFERENCES jobs(id),
+  job_id BIGSERIAL,
 
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
 

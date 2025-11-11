@@ -1,4 +1,6 @@
-use crate::routes::Route;
+use crate::{error::ErrorResponse, routes::Route};
+use gloo_net::http::Request;
+use wasm_bindgen_futures::spawn_local;
 use web_sys::HtmlTextAreaElement;
 use yew::prelude::*;
 use yew_router::prelude::*;
@@ -31,17 +33,53 @@ pub fn login_page() -> Html {
         let password = password.clone();
         let error = error.clone();
         Callback::from(move |e: SubmitEvent| {
+            let email = email.clone();
+            let password = password.clone();
+            let error = error.clone();
             e.prevent_default();
             if email.is_empty() || password.is_empty() {
                 error.set(Some("Please fill in all fields".to_string()));
             } else {
-                // TODO: Call your Axum backend API
-                error.set(None);
-                web_sys::window()
-                    .unwrap()
-                    .location()
-                    .set_href("/app")
-                    .unwrap();
+                spawn_local(async move {
+                    let email = (*email).clone();
+                    let password = (*password).clone();
+                    let error = error.clone();
+                    let response = Request::post("/api/login")
+                        .json(&serde_json::json!({
+                            "password": password,
+                            "email": email,
+                        }))
+                        .unwrap()
+                        .send()
+                        .await;
+
+                    match response {
+                        // We got a response, and it's OK.
+                        Ok(r) if r.status() == 200 => {
+                            web_sys::window()
+                                .unwrap()
+                                .location()
+                                .set_href("/app")
+                                .unwrap();
+                        }
+                        // We got a response, but it's an error.
+                        Ok(r) => {
+                            let err_msg = r.json::<ErrorResponse>().await;
+                            match err_msg {
+                                Ok(e_msg) => {
+                                    error.set(Some(format!("Failed to login: {}", e_msg.error)))
+                                }
+                                Err(_) => {
+                                    error.set(Some(format!("Failed to login: {}", r.status_text())))
+                                }
+                            }
+                        }
+                        // We did not even get a response.
+                        Err(e) => {
+                            error.set(Some(format!("Failed to login: {}", e)));
+                        }
+                    }
+                });
             }
         })
     };
@@ -51,7 +89,7 @@ pub fn login_page() -> Html {
             <div class="auth-container">
                 <div class="auth-header">
                     <Link<Route> to={Route::Home} classes="logo-link">
-                        <h1>{"StrategyBuilder"}</h1>
+                        <h1>{"StrategyMaker"}</h1>
                     </Link<Route>>
                     <h2>{"Welcome Back"}</h2>
                     <p>{"Sign in to continue building your strategies"}</p>
