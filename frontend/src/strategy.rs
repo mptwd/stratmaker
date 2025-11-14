@@ -2,7 +2,9 @@ use crate::{error::ErrorResponse, routes::Route};
 use chrono::{DateTime, Utc};
 use gloo_net::http::Request;
 use serde::{Deserialize, Serialize};
+use serde_wasm_bindgen::to_value;
 use uuid::Uuid;
+use wasm_bindgen::prelude::*;
 use yew::prelude::*;
 use yew_router::prelude::*;
 
@@ -150,6 +152,60 @@ pub struct BalancePoint {
 #[derive(Properties, PartialEq)]
 pub struct StrategyDetailProps {
     pub strategy_id: Uuid,
+}
+
+#[wasm_bindgen(module = "/src/chart.js")]
+extern "C" {
+    fn render_chart(labels: JsValue, values: JsValue);
+}
+
+// Simple downsampling using a Largest-Triangle-Three-Buckets inspired method
+fn downsample(data: &[(f64, f64)], target: usize) -> Vec<(f64, f64)> {
+    if data.len() <= target {
+        return data.to_vec();
+    }
+
+    let bucket_size = (data.len() - 2) as f64 / (target - 2) as f64;
+    let mut result = Vec::with_capacity(target);
+    result.push(data[0]);
+
+    let mut a = 0;
+    for i in 0..(target - 2) {
+        let range_start = ((i as f64) * bucket_size + 1.0).floor() as usize;
+        let range_end = (((i + 1) as f64) * bucket_size + 1.0)
+            .min((data.len() - 1) as f64)
+            .floor() as usize;
+
+        // Average X,Y for bucket
+        let (mut avg_x, mut avg_y) = (0.0, 0.0);
+        let count = range_end - range_start;
+        for j in range_start..range_end {
+            avg_x += data[j].0;
+            avg_y += data[j].1;
+        }
+        avg_x /= count as f64;
+        avg_y /= count as f64;
+
+        // Pick point with largest triangle area relative to avg
+        let range = &data[range_start..range_end];
+        let mut max_area = -1.0;
+        let mut next_a = range_start;
+        for (k, &(x, y)) in range.iter().enumerate() {
+            let area =
+                (data[a].0 - avg_x) * (y - data[a].1) - (data[a].0 - x) * (avg_y - data[a].1);
+            let area = area.abs();
+            if area > max_area {
+                max_area = area;
+                next_a = range_start + k;
+            }
+        }
+
+        result.push(data[next_a]);
+        a = next_a;
+    }
+
+    result.push(data[data.len() - 1]);
+    result
 }
 
 #[function_component(StrategyDetailPage)]
@@ -304,6 +360,18 @@ pub fn strategy_detail_page(props: &StrategyDetailProps) -> Html {
     let strategy_json =
         serde_json::to_string_pretty(&*strategy).unwrap_or_else(|_| "Error".to_string());
 
+    use_effect(|| {
+        // Example: generate fake time series data
+        let n = 10_000;
+        let labels: Vec<f64> = (0..n).map(|i| 1_600_000_000.0 + i as f64 * 60.0).collect(); // timestamps
+        let values: Vec<f64> = (0..n)
+            .map(|i| (i as f64 / 100.0).sin() * 10.0 + 100.0)
+            .collect();
+
+        render_chart(to_value(&labels).unwrap(), to_value(&values).unwrap());
+        || ()
+    });
+
     html! {
     <div class="app-page">
         <nav class="app-navbar">
@@ -363,6 +431,7 @@ pub fn strategy_detail_page(props: &StrategyDetailProps) -> Html {
                 }
                 }
                 }
+                <div id="chart"></div>
             </div>
         </div>
     </div>
