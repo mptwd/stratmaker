@@ -1,0 +1,6 @@
+# Created by venv; see https://docs.python.org/3/library/venv.html
+*
+
+# except
+!.gitignore
+!data_gatherer_and_sender_to_cloudfare.py
