@@ -9,6 +9,7 @@ pub mod auth;
 pub mod dataset_client;
 pub mod errors;
 pub mod extractors;
+pub mod s3_manager;
 pub mod validators;
 
 use axum::{

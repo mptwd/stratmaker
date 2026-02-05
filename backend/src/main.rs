@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use tokio::net::TcpListener;
 
 use backend::{
-    AppState, Database, SessionStore, create_app, dataset_client::DatasetManagerClient,
+    AppState, Database, SessionStore, create_app, dataset_client::DatasetManagerClient, s3_manager,
     validators::strategy_validator::StrategyValidator,
 };
 
@@ -34,11 +34,20 @@ async fn main() -> anyhow::Result<()> {
     valid_indicators.insert("volume".to_string());
     let strat_validator = StrategyValidator::new(valid_indicators);
 
+    let bucket_name = std::env::var("BUCKET_NAME").unwrap_or_else(|_| "datasets".to_string());
+    let account_id = std::env::var("R2_ACCOUNT_ID")?;
+    let access_key_id = std::env::var("R2_ACCESS_KEY_ID")?;
+    let access_key_secret = std::env::var("R2_ACCESS_KEY_SECRET")?;
+
+    let s3 =
+        s3_manager::S3Manager::new(bucket_name, account_id, access_key_id, access_key_secret).await;
+
     let app_state = AppState {
         db,
         session_store,
         dataset_manager,
         strat_validator,
+        s3,
     };
     let app = create_app(app_state);
 
